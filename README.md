@@ -1,4 +1,4 @@
-**PyU8disas** is an nX-U8/100 disassembler written in Python. It tries to mimic the original, intended ASM syntax of the U8 architecture.
+**PyU8disas** is an nX-U8/100 core disassembler written in Python. It tries to mimic the original, intended assembly syntax of the U8 architecture. (except for the addresses and instruction opcodes)
 
 # Usage
 ```
@@ -13,10 +13,9 @@ options:
                         treat the interrupt vector area as normal code
   -o output, --output output
                         name of output file. if omitted the disassembly will be outputted to stdout
-
 ```
 
-# Similar tools
+# Other U8 disassemblers
 Here are some other nX-U8/100 disassemblers you should check out.
 
 - [nxu8_disas](https://github.com/Fraserbc/nxu8_disas) by Fraser Price / Fraserbc / Delta / frsr
