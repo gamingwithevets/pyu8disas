@@ -4,32 +4,11 @@ import ctypes
 import argparse
 import traceback
 
-class imm7(ctypes.Structure):
-	_fields_ = [('value', ctypes.c_byte, 7)]
-
-	def __init__(self, value: int = 0): self.value = value & 0x3f
-	def __repr__(self): return f'imm7({self.value})'
-	def __str__(self): return str(self.value)
-
-class unsigned7(ctypes.Structure):
-	_fields_ = [('value', ctypes.c_ubyte, 7)]
-
-	def __init__(self, value: int = 0): self.value = value & 0x7f
-	def __repr__(self): return f'unsigned7({self.value})'
-	def __str__(self): return str(self.value)
-
 class signed6(ctypes.Structure):
 	_fields_ = [('value', ctypes.c_byte, 6)]
 
 	def __init__(self, value: int = 0): self.value = value & 0x1f
-	def __repr__(self): return f'unsigned7({self.value})'
-	def __str__(self): return str(self.value)
-
-class unsigned6(ctypes.Structure):
-	_fields_ = [('value', ctypes.c_ubyte, 6)]
-
-	def __init__(self, value: int = 0): self.value = value & 0x3f
-	def __repr__(self): return f'unsigned7({self.value})'
+	def __repr__(self): return f'signed6({self.value})'
 	def __str__(self): return str(self.value)
 
 stdout_file = None
@@ -230,7 +209,7 @@ dsr_prefixes = (
 	((0xf, 0xe, 9, 0xf), 'DSR'),
 	)
 
-rst_vct_names = {0: 'spinit', 2: 'start', 4: 'brk', 6: 'nmi_entry', 8: 'nmice_entry'}
+rst_vct_names = {0: 'spinit', 2: 'start', 4: 'brk', 6: 'nmice_entry', 8: 'nmi_entry'}
 int_entry_name_template = 'Int{}_entry'
 swi_entry_name_template = 'sw{}_entry'
 
@@ -340,9 +319,16 @@ def decode_ins():
 
 	if '#Radr' in ins_str:
 		radr = addr + ins_len + ctypes.c_byte(comb_nibbs(word[2:])).value * 2
-		if radr > 5:
-			label_name = f'.skip_{format(radr, "04x")}'
-			labels.append((label_name, radr, False))
+		if radr > 5 and radr < len(input_file):
+			skip = False
+			for label in labels:
+				if label[1] == radr:
+					skip = True
+					label_name = label[0]
+					break
+			if not skip:
+				label_name = f'.skip_{format(radr, "04x")}'
+				labels.append((label_name, radr, False))
 			ins_str = ins_str.replace('#Radr', label_name)
 		else: ins_str = ins_str.replace('#Radr', fmt_addr(radr)[1:])
 
@@ -359,11 +345,11 @@ def decode_ins():
 	ins_str = ins_str.replace('#bit_offset', str(word[2] & 7))
 	ins_str = ins_str.replace('#imm8', f'#{format_hex(comb_nibbs(word[2:]))}')
 	ins_str = ins_str.replace('#unsigned8', f'#{format_hex(comb_nibbs(word[2:]))}')
-	ins_str = ins_str.replace('#signed8', f'#{format_hex(ctypes.c_byte(comb_nibbs(word[2:])).value)}')
-	ins_str = ins_str.replace('#imm7', f'#{format_hex(imm7(comb_nibbs((word[2] & 0x7f, word[3]))).value)}')
+	ins_str = ins_str.replace('#signed8', format_hex_sign(ctypes.c_byte(comb_nibbs(word[2:])).value))
+	ins_str = ins_str.replace('#imm7', f'#{format_hex(comb_nibbs((word[2] & 0x7f, word[3])))}')
 	ins_str = ins_str.replace('#width', str(word[2] & 7))
-	ins_str = ins_str.replace('#Disp6', f'{format_hex_sign(signed6(comb_nibbs((word[2] & 0x3f, word[3]))).value)}')
-	ins_str = ins_str.replace('#snum', f'#{format_hex(unsigned6(comb_nibbs((word[2] & 0x3f, word[3]))).value)}')
+	ins_str = ins_str.replace('#Disp6', format_hex_sign(signed6(comb_nibbs((word[2] & 0x3f, word[3]))).value))
+	ins_str = ins_str.replace('#snum', str(comb_nibbs((word[2] & 0x3f, word[3]))))
 
 	return ins_str, ins_len, False, used_dsr_prefix
 
@@ -397,7 +383,7 @@ def disassemble(interrupts: bool = True):
 			vct_table_lines[addr] = format_ins(addr, ins_op, 2, f'DW {swi_entry_name_template.format(i)}')
 			addr += 2
 
-	for k, v in rst_vct_names.items(): labels.append((v, int.from_bytes(conv_little(input_file[k:k+2]), 'big'), 0))
+	for k, v in rst_vct_names.items(): labels.append((v, int.from_bytes(conv_little(input_file[k:k+2]), 'big'), True))
 
 	while addr < len(input_file):
 		ins_str, ins_len, dsr_prefix, used_dsr_prefix = decode_ins()
@@ -415,10 +401,12 @@ def disassemble(interrupts: bool = True):
 			if last_dsr_prefix: format_ins(addr_prev, get_op(addr_prev), 2, ins_str)
 		addr += ins_len
 
-	end_func_lines = ('POP PC', 'RT', 'RTI', 'BAL -')
+	end_func_lines = ('POP PC', 'RT', 'RTI', 'BAL .skip_')
 	for k, v in lines.items():
 		label_found = False
 		if any(j in v for j in end_func_lines):
+			if 'BAL .skip_' in v:
+				if int(v.split('BAL .skip_')[1], 16) >= k: continue
 			for label in labels:
 				if label[1] == k+2:
 					label_found = True
