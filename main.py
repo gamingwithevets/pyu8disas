@@ -355,7 +355,7 @@ def decode_ins():
 	ins_str = ins_str.replace('#unsigned8', f'#{format_hex(comb_nibbs(word[2:]))}')
 	ins_str = ins_str.replace('#signed8', f'#{format_hex(ctypes.c_byte(comb_nibbs(word[2:])).value)}')
 	ins_str = ins_str.replace('#imm7', f'#{format_hex(imm7(comb_nibbs((word[2] & 0x7f, word[3]))).value)}')
-	ins_str = ins_str.replace('#width', f'#{format_hex(unsigned7(comb_nibbs((word[2] & 0x7f, word[3]))).value)}')
+	ins_str = ins_str.replace('#width', str(word[2] & 7))
 	ins_str = ins_str.replace('#Disp6', f'{format_hex_sign(signed6(comb_nibbs((word[2] & 0x3f, word[3]))).value)}')
 	ins_str = ins_str.replace('#snum', f'#{format_hex(unsigned6(comb_nibbs((word[2] & 0x3f, word[3]))).value)}')
 
