@@ -286,10 +286,16 @@ def decode_ins():
 		else: score_cond = 2
 		if score >= score_cond and word[0] == ins[0][0]:
 			if not any((
-				ins[-1] == '#width' and (word[2] & 2 - 1) != ins[0][2],
-				ins[-1] == '#imm7' and (word[2] & 2 - 1) != ins[0][2],
-				'#Disp6' in ins[-1] and (word[2] & 4 - 1) != ins[0][2],
-				'#bit_offset' in ins[-1] and (word[2] & 2 - 1) != ins[0][2],
+				len(ins) > 3 and ins[3] == '#width' and (word[2] & 2 - 1) != ins[0][2],
+				len(ins) > 3 and ins[3] == '#imm7' and (word[2] & 2 - 1) != ins[0][2],
+				len(ins) > 2 and 'ER#0' in ins[2] and (word[1] & 1) != 0,
+				len(ins) > 3 and 'ER#1' in ins[3] and (word[2] & 1) != 0,
+				len(ins) > 2 and 'XR#0' in ins[2] and (word[1] & 2) != 0,
+				len(ins) > 3 and 'XR#1' in ins[3] and (word[2] & 2) != 0,
+				len(ins) > 2 and 'QR#0' in ins[2] and (word[1] & 3) != 0,
+				len(ins) > 3 and 'QR#1' in ins[3] and (word[2] & 3) != 0,
+				len(ins) > 3 and '#Disp6' in ins[3] and (word[2] & 4 - 1) != ins[0][2],
+				len(ins) > 3 and '#bit_offset' in ins[3] and (word[2] & 2 - 1) != ins[0][2],
 				ins[0][1] == '#1+1' and word[2] != ins[0][2],
 				type(ins[0][-1]) == int and word[3] != ins[0][3],
 			)):
