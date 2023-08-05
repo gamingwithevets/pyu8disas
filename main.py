@@ -236,11 +236,12 @@ swi_entry_name_template = 'sw{}_entry'
 
 def printf(*args, **kwargs): print(*args, **kwargs, file = stdout_file)
 
-def conv_nibbs(data: bytes) -> tuple: return (data[0] & 0xf) >> 4, data[0] & 0xf, (data[1] & 0xf0) >> 4, data[1] & 0xf
+def conv_nibbs(data: bytes) -> tuple: return (data[0] >> 4) & 0xf, data[0] & 0xf, (data[1] >> 4) & 0xf, data[1] & 0xf
 
 def comb_nibbs(data: tuple) -> int: return int(hex(data[0]) + hex(data[1])[2:], 16)
 
 def format_hex(data: int) -> str: return format(data, '02X') + 'H'
+def format_hex_sign(data: int) -> str: return format(data, '+X') + 'H'
 def format_hex_w(data: int) -> str: return format(data, '04X') + 'H'
 def format_hex_dd(data: int) -> str: return format(data, '08X') + 'H'
 
@@ -256,10 +257,10 @@ def decode_ins():
 	global labels, last_dsr_prefix, addr
 
 	ins_len = 2
-	score = 0
 	prefix_word, _ = read_ins()
 	prefix_str = ''
 	for prefix in dsr_prefixes:
+		score = 0
 		for i in range(len(prefix[0])):
 			if type(prefix[0][i]) != int: continue
 			elif prefix_word[i] == prefix[0][i]: score += 1
@@ -273,43 +274,52 @@ def decode_ins():
 	if prefix_str: return prefix_str, ins_len, True, False
 
 	word, raw_bytes = read_ins()
-	raw_bytes_int = int.from_bytes(raw_bytes2, 'big')
+	raw_bytes_int = int.from_bytes(raw_bytes, 'big')
 	ins_str = f'D{"W" if ins_len == 2 else "D"} {format_hex_w(raw_bytes_int) if ins_len == 2 else format_hex_dd(raw_bytes_int)}'
-	score = 0
 	for ins in instructions:
+		score = 0
 		for i in range(len(ins[0])):
 			if type(ins[0][i]) != int: continue
 			elif word[i] == ins[0][i]: score += 1
 		num_ints = sum(isinstance(_, int) for _ in ins[0])
-		if num_ints in (1, 4): score_cond = num_ints
+		if num_ints in (1, 4) or any(ins[1] == i for i in ('B', 'BL', 'POP', 'PUSH')) or any(i in ins[2:] for i in ('#P[EA]', '#P[EA+]')): score_cond = num_ints
 		else: score_cond = 2
-		if score > score_cond:
+		if score >= score_cond and word[0] == ins[0][0]:
 			if not any((
-				'#width' in ins[1:] and (word[2] & 2 - 1) != ins[0][2],
-				'#imm7' in ins[1:] and (word[2] & 2 - 1) != ins[0][2],
-				'#Disp6' in ins[1:] and (word[2] & 4 - 1) != ins[0][2],
-				'#bit_offset' in ins[1:] and (word[2] & 2 - 1) != ins[0][2],
+				ins[-1] == '#width' and (word[2] & 2 - 1) != ins[0][2],
+				ins[-1] == '#imm7' and (word[2] & 2 - 1) != ins[0][2],
+				'#Disp6' in ins[-1] and (word[2] & 4 - 1) != ins[0][2],
+				'#bit_offset' in ins[-1] and (word[2] & 2 - 1) != ins[0][2],
 				ins[0][1] == '#1+1' and word[2] != ins[0][2],
+				type(ins[0][-1]) == int and word[3] != ins[0][3],
 			)):
 				ins_str = ins[1]
 				if len(ins) >= 3: ins_str += ' ' + ins[2]
 				if len(ins) >= 4: ins_str += ', ' + ins[3]
 				break
 
-	vals = ('#Disp16', '#Dadr')
-	if any(val in ins_str for val in vals):
+	if '#Dadr' in ins_str:
+		addr_temp = addr; addr += 2
 		_, raw_bytes2 = read_ins()
+		addr = addr_temp
 		ins_len += 2
-		repl = lambda x: ins_str.replace(x, f'{format(word[1], "X")}:{format_hex_w(int.from_bytes(raw_bytes2, "big"))}')
-		for val in vals: ins_str = repl(val)
+		ins_str = ins_str.replace('#Dadr', f'{format(word[1], "X")}:{format_hex_w(int.from_bytes(raw_bytes2, "big"))}')
 
+	if '#Disp16' in ins_str:
+		addr_temp = addr; addr += 2
+		_, raw_bytes2 = read_ins()
+		addr = addr_temp
+		ins_len += 2
+		ins_str = ins_str.replace('#Disp16', format_hex_sign(ctypes.c_short(int.from_bytes(raw_bytes2, "big")).value))
 
 	if '#Cadr' in ins_str:
+		addr_temp = addr; addr += 2
 		_, raw_bytes2 = read_ins()
+		addr = addr_temp
 		ins_len += 2
 		cadr = word[1] * 0x10000 + int.from_bytes(raw_bytes2, 'big')
 		if cadr % 2 != 0: cadr -= 1
-		if cadr > 5:
+		if cadr > 5 and cadr < len(input_file):
 			skip = False
 			for label in labels:
 				if label[1] == cadr:
@@ -318,40 +328,37 @@ def decode_ins():
 					break
 			if not skip:
 				label_name = f'f_{format(cadr, "05X")}'
-				labels.append((label_name, cadr, 0))
+				labels.append((label_name, cadr, True))
 			ins_str = ins_str.replace('#Cadr', label_name)
-		else: ins_str.replace('#Cadr', fmt_addr(cadr))
+		else: ins_str = ins_str.replace('#Cadr', fmt_addr(cadr))
 
 	if '#Radr' in ins_str:
 		radr = addr + ins_len + ctypes.c_byte(comb_nibbs(word[2:])).value * 2
 		if radr > 5:
 			label_name = f'.skip_{format(radr, "04x")}'
-			labels.append((label_name, radr, 1))
+			labels.append((label_name, radr, False))
 			ins_str = ins_str.replace('#Radr', label_name)
-		else: ins_str.replace('#Radr', fmt_addr(radr)[1:])
+		else: ins_str = ins_str.replace('#Radr', fmt_addr(radr)[1:])
 
 	if '#P' in ins_str:
-		used_dsr_prefix = True
+		used_dsr_prefix = bool(last_dsr_prefix)
 		ins_len + 2
 		ins_str = ins_str.replace('#P', last_dsr_prefix)
 		last_dsr_prefix = ''
 		last_dsr_prefix_str = ''
 	else: used_dsr_prefix = False
 
-	int_str = ins_str.replace('#bit_offset', word[2] & 7) 
+	ins_str = ins_str.replace('#0', str(word[1]))
+	ins_str = ins_str.replace('#1', str(word[2]))
+	ins_str = ins_str.replace('#bit_offset', str(word[2] & 7))
 	ins_str = ins_str.replace('#imm8', f'#{format_hex(comb_nibbs(word[2:]))}')
 	ins_str = ins_str.replace('#unsigned8', f'#{format_hex(comb_nibbs(word[2:]))}')
 	ins_str = ins_str.replace('#signed8', f'#{format_hex(ctypes.c_byte(comb_nibbs(word[2:])).value)}')
 	ins_str = ins_str.replace('#imm7', f'#{format_hex(imm7(comb_nibbs((word[2] & 0x7f, word[3]))).value)}')
 	ins_str = ins_str.replace('#width', f'#{format_hex(unsigned7(comb_nibbs((word[2] & 0x7f, word[3]))).value)}')
-	ins_str = ins_str.replace('#Disp6', f'#{format_hex(signed6(comb_nibbs((word[2] & 0x3f, word[3]))).value)}')
+	ins_str = ins_str.replace('#Disp6', f'{format_hex_sign(signed6(comb_nibbs((word[2] & 0x3f, word[3]))).value)}')
 	ins_str = ins_str.replace('#snum', f'#{format_hex(unsigned6(comb_nibbs((word[2] & 0x3f, word[3]))).value)}')
-	
-	if '#0' in ins_str: ins_str = ins_str.replace('#0', str(word[1]))
-	if '#1' in ins_str: ins_str = ins_str.replace('#1', str(word[2]))
 
-	print(addr)
-	print(used_dsr_prefix)
 	return ins_str, ins_len, False, used_dsr_prefix
 
 def read_ins() -> tuple:
@@ -363,11 +370,6 @@ def disassemble(interrupts: bool = True):
 	global addr, input_file, labels, rst_vct_names, last_dsr_prefix, last_dsr_prefix_str
 	vct_table_lines = {}
 	lines = {}
-
-	printf('''\
-; This file was generated by PyU8disas
-; GitHub repository: https://github.com/gamingwithevets/pyu8disas
-''')
 
 	tab = '\t'
 	format_ins = lambda addr, ins_op, ins_len, ins_str: f'{fmt_addr(addr)}\t{format(ins_op, "0"+str(ins_len*2)+"X")}\t{tab if ins_len < 3 else ""}{ins_str}'
@@ -389,7 +391,7 @@ def disassemble(interrupts: bool = True):
 			vct_table_lines[addr] = format_ins(addr, ins_op, 2, f'DW {swi_entry_name_template.format(i)}')
 			addr += 2
 
-	for k, v in rst_vct_names.items(): labels.append((v, conv_little(input_file[k:k+2]), 0))
+	for k, v in rst_vct_names.items(): labels.append((v, int.from_bytes(conv_little(input_file[k:k+2]), 'big'), 0))
 
 	while addr < len(input_file):
 		ins_str, ins_len, dsr_prefix, used_dsr_prefix = decode_ins()
@@ -407,12 +409,29 @@ def disassemble(interrupts: bool = True):
 			if last_dsr_prefix: format_ins(addr_prev, get_op(addr_prev), 2, ins_str)
 		addr += ins_len
 
-	for label in list(dict.fromkeys(labels)):
-		nl = '\n'
-		if label[1] in lines: lines[label[1]] = f'{nl if label[2] == 0 else ""}{label[0]}:\n{lines[label[1]]}'
-	if lines[list(lines.keys())[0]][0] == '\n': lines[list(lines.keys())[0]] = lines[list(lines.keys())[0]][1:]
+	end_func_lines = ('POP PC', 'RT', 'RTI', 'BAL -')
+	for k, v in lines.items():
+		label_found = False
+		if any(j in v for j in end_func_lines):
+			for label in labels:
+				if label[1] == k+2:
+					label_found = True
+					if label[2]: lines[k] += '\n'
+					break
+			if not label_found:
+				labels.append((f'f_{format(k+2, "05X")}_UNUSED', k+2, True))
+				lines[k] += '\n'
 
-	printf('; Reset vectors')
+	for label in tuple(dict.fromkeys(labels)):
+		if label[1] in lines: lines[label[1]] = f'{label[0]}:\n' + lines[label[1]]
+
+
+	printf('''\
+; This file was generated by PyU8disas
+; GitHub repository: https://github.com/gamingwithevets/pyu8disas
+
+; Reset vectors\
+''')
 	for k, v in rst_vct_names.items():
 		if k == 6:
 			if not interrupts: break
@@ -442,9 +461,19 @@ if __name__ == '__main__':
 	try: disassemble(args.interrupts)
 	except Exception:
 		if args.output: printf('''\
+; This file was generated by PyU8disas
+; GitHub repository: https://github.com/gamingwithevets/pyu8disas
+
 ; Unfortunately, an exception was thrown during the disassembly process. The
 ; exception details are provided below for reference.
 
 ; ''' + '\n; '.join(traceback.format_exc().split('\n')))
 		print(traceback.format_exc())
-	except KeyboardInterrupt: print('KeyboardInterrupt detected, exiting.')
+	except KeyboardInterrupt:
+		print('KeyboardInterrupt detected, exiting.')
+		printf('''\
+; This file was generated by PyU8disas
+; GitHub repository: https://github.com/gamingwithevets/pyu8disas
+
+; The disassembly process was interrupted.\
+''')
