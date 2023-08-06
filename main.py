@@ -14,7 +14,7 @@ class signed6(ctypes.Structure):
 stdout_file = None
 input_file = None
 addr = 0
-labels = []
+labels = {}
 last_dsr_prefix = ''
 last_dsr_prefix_str = ''
 
@@ -310,14 +310,12 @@ def decode_ins():
 		if cadr % 2 != 0: cadr -= 1
 		if cadr > 5 and cadr < len(input_file):
 			skip = False
-			for label in labels:
-				if label[1] == cadr:
-					skip = True
-					label_name = label[0]
-					break
+			if cadr in labels:
+				label_name = labels[cadr][0]
+				skip = True
 			if not skip:
 				label_name = f'f_{format(cadr, "05X")}'
-				labels.append([label_name, cadr, True])
+				labels[cadr] = [label_name, True]
 			ins_str = ins_str.replace('#Cadr', label_name)
 		else: ins_str = ins_str.replace('#Cadr', fmt_addr(cadr))
 
@@ -325,12 +323,10 @@ def decode_ins():
 		radr = addr + ins_len + ctypes.c_byte(comb_nibbs(word[2:])).value * 2
 		if radr > 5 and radr < len(input_file):
 			skip = False
-			for label in labels:
-				if label[1] == radr:
-					skip = True
-					label_name = label[0]
-					break
-			if not skip: labels.append(['', radr, False, 0])
+			if radr in labels:
+				label_name = labels[radr][0]
+				skip = True
+			if not skip: labels[radr] = ['', False, 0]
 			ins_str = ins_str.replace('#Radr', '#Radr_' + format(radr, '05X'))
 		else: ins_str = ins_str.replace('#Radr', fmt_addr(radr)[1:])
 
@@ -390,7 +386,7 @@ def disassemble(interrupts: bool = True):
 			vct_table_lines[addr] = format_ins(addr, ins_op, 2, f'DW {swi_entry_name_template.format(i)}')
 			addr += 2
 
-	for k, v in rst_vct_names.items(): labels.append([v, int.from_bytes(conv_little(input_file[k:k+2]), 'big'), True])
+	for k, v in rst_vct_names.items(): labels[int.from_bytes(conv_little(input_file[k:k+2]), 'big')] = [v, True]
 
 	while addr < len(input_file):
 		print_progress()
@@ -413,67 +409,60 @@ def disassemble(interrupts: bool = True):
 	count = 0
 	end_func_lines = ('POP PC', 'RT', 'RTI', 'BAL')
 	for k, v in lines.items():
-		label_found = False
 		if any(j in v for j in end_func_lines):
-			for label in labels:
-				if label[1] == k+2:
-					label_found = True
-					if label[2]: lines[k] += '\n'
-					break
-			if not label_found:
-				labels.append([f'f_{format(k+2, "05X")}_UNUSED', k+2, True])
+			if k+2 in labels:
+				if labels[k+2][1]: lines[k] += '\n'
+			else:
+				labels[k+2] = [f'f_{format(k+2, "05X")}_UNUSED', True]
 				lines[k] += '\n'
 		count += 1
 		print(f'\rsearching for unused functions and adding newlines  {format(round(count / len(lines)) * 100, "3")}%', end = '')
 
-
-	print('\rpython is good no doubt.                                \rremoving duplicate labels    0%', end = '')
+	print('\rpython is good. no doubt abt that                       \rgenerating jump label names    0%', end = '')
 	count = 0
-	for label in [i for i in labels if i[2]]:
-		for label_ in [i for i in labels if not i[2]]:
-			if label_[1] == label[1]:
-				labels.remove(label_)
-				break
-		count += 1
-		print(f'\rremoving duplicate labels  {format(round(count / len([i for i in labels if i[2]])) * 100, "3")}%', end = '')
-
-	print('\rhey gois its quandale dingle here\rgenerating jump label names    0%', end = '')
-	count = 0
-	for label in [i for i in labels if not i[2]]:
-		for i in range(0, 0x7f, 2):
-			if label[1] - i in [i[1] for i in labels if i[2]]:
-				num = label[1] - i
-				label_name = f'.l_{format(label[1] - num, "03X")}'
-				for j in labels:
-					if j[1] == num:
-						j[0] = label_name
-						break
+	for addr, data in labels.items():
+		if not data[1]:
+			i = 0
+			found_label = False
+			while not found_label:
+				i += 2
+				num = addr - i
+				if num < 0: break
+				if num in labels:
+					found_label = True
+					if labels[num][1]: label_name = f'.l_{format(addr - num, "03X")}'
+					else: label_name = f'.jump_{format(num, "04X")}'
+					labels[num][0] = label_name
+			if found_label:
+				data[2] = num
 				for j in range(-0x7e, 0x7f, 2):
-					if label[1] + j in lines:
-						num_ = label[1] + j
-						if '#Radr' in lines[num_] and int(lines[num_][-5], 16) == label[1]:
+					if addr + j in lines:
+						num_ = addr + j
+						if '#Radr' in lines[num_] and int(lines[num_][-5:], 16) == addr:
 							lines[num_] = lines[num_][:-6]
 							lines[num_] = lines[num_].replace('#Radr', label_name)
-				label[3] = num
-				break
 		count += 1
-		print(f'\rgenerating jump label names  {format(round(count / len([i for i in labels if not i[2]]) * 100), "3")}%', end = '')
+		print(f'\rgenerating jump label names  {format(round(count / len(labels) * 100), "3")}%', end = '')
 
 	print('\rI HATE ANIME I HATE ANIME I HATE \radding labels to disassembly    0%', end = '')
 	count = 0
-	for label in labels:
-		if label[1] in lines: lines[label[1]] = f'{label[0]}:\n' + lines[label[1]]
-		if not label[2]:
+	for addr, data in labels.items():
+		if not data[1]:
 			for i in range(-0x7e, 0x7f, 2):
-				if label[1] + i in lines and label[0] in lines[label[1] + i]:
+				if addr + i in lines and data[0] in lines[addr + i]:
 					j = 0
-					while True:
+					found_j = False
+					while not found_j:
 						j += 2
-						for label_ in [k for k in labels if k[2]]:
-							if label_[2] and label_[1] == label[1] - j:
-								func_label = label_[0]
-								break
-					if label[3] != func_label: line = line.replace(label[0], f'{func_label}{label[0]}')
+						if addr - j in labels and labels[addr - j][1] and labels[addr - j][0]:
+							found_j = True
+							func_label = labels[addr - j][0]
+						if addr - j < 0: break
+					if found_j and data[2] != addr - j:
+						num = addr + i
+						lines[num] = lines[num][:-len(data[0])] + f'{func_label}{data[0]}'
+					break
+		if addr in lines: lines[addr] = f'{data[0]}:\n' + lines[addr]
 		count += 1
 		print(f'\radding labels to disassembly  {format(round(count / len(labels) * 100), "3")}%', end = '')
 
@@ -500,7 +489,7 @@ def disassemble(interrupts: bool = True):
 
 	printf('\n' + '\n'.join(vct_table_lines.values()) + '\n')
 	printf('\n'.join(lines.values()))
-	if stdout_file: print('\rabcde                       \rdone!')
+	if stdout_file: print('\rabcde                             \rdone!')
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description = 'PyU8disas - nX-U8 disassembler. Outputs assembly format.', epilog = '(c) 2023 GamingWithEvets Inc.\nLicensed under the MIT license', formatter_class=argparse.RawTextHelpFormatter, allow_abbrev = False)
