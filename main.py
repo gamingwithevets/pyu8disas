@@ -317,7 +317,7 @@ def decode_ins():
 					break
 			if not skip:
 				label_name = f'f_{format(cadr, "05X")}'
-				labels.append((label_name, cadr, True))
+				labels.append([label_name, cadr, True])
 			ins_str = ins_str.replace('#Cadr', label_name)
 		else: ins_str = ins_str.replace('#Cadr', fmt_addr(cadr))
 
@@ -330,10 +330,8 @@ def decode_ins():
 					skip = True
 					label_name = label[0]
 					break
-			if not skip:
-				label_name = f'.skip_{format(radr, "04x")}'
-				labels.append((label_name, radr, False))
-			ins_str = ins_str.replace('#Radr', label_name)
+			if not skip: labels.append(['', radr, False, 0])
+			ins_str = ins_str.replace('#Radr', '#Radr_' + format(radr, '05X'))
 		else: ins_str = ins_str.replace('#Radr', fmt_addr(radr)[1:])
 
 	if '#P' in ins_str:
@@ -371,25 +369,31 @@ def disassemble(interrupts: bool = True):
 	format_ins = lambda addr, ins_op, ins_len, ins_str: f'{fmt_addr(addr)}\t{format(ins_op, "0"+str(ins_len*2)+"X")}\t{tab if ins_len < 3 else ""}{ins_str}'
 	get_op = lambda addr, length = 2: int.from_bytes(conv_little(input_file[addr:addr+length]), 'big')
 
-	while addr < 10 if interrupts else 6:	
+	print_progress = lambda: print(f'\rdisassembing address {fmt_addr(addr)}  {format(round(addr / len(input_file) * 100), "3")}%', end = '')	
+
+	while addr < 10 if interrupts else 6:
+		print_progress()
 		ins_op = get_op(addr)
 		vct_table_lines[addr] = format_ins(addr, ins_op, 2, f'DW {rst_vct_names[addr]}')
 		addr += 2
 
 	if interrupts:
-		for i in range(1, 60):	
+		for i in range(1, 60):
+			print_progress()
 			ins_op = get_op(addr)
 			vct_table_lines[addr] = format_ins(addr, ins_op, 2, f'DW {int_entry_name_template.format(i)}')
 			addr += 2
 
 		for i in range(64):	
+			print_progress()
 			ins_op = get_op(addr)
 			vct_table_lines[addr] = format_ins(addr, ins_op, 2, f'DW {swi_entry_name_template.format(i)}')
 			addr += 2
 
-	for k, v in rst_vct_names.items(): labels.append((v, int.from_bytes(conv_little(input_file[k:k+2]), 'big'), True))
+	for k, v in rst_vct_names.items(): labels.append([v, int.from_bytes(conv_little(input_file[k:k+2]), 'big'), True])
 
 	while addr < len(input_file):
+		print_progress()
 		ins_str, ins_len, dsr_prefix, used_dsr_prefix = decode_ins()
 		ins_op = get_op(addr, ins_len)
 		if dsr_prefix:
@@ -405,6 +409,8 @@ def disassemble(interrupts: bool = True):
 			if last_dsr_prefix: format_ins(addr_prev, get_op(addr_prev), 2, ins_str)
 		addr += ins_len
 
+	print('\rwaltuh whiet will find you lol :)  \rsearching for unused functions and adding newlines    0%', end = '')
+	count = 0
 	end_func_lines = ('POP PC', 'RT', 'RTI', 'BAL')
 	for k, v in lines.items():
 		label_found = False
@@ -415,12 +421,64 @@ def disassemble(interrupts: bool = True):
 					if label[2]: lines[k] += '\n'
 					break
 			if not label_found:
-				labels.append((f'f_{format(k+2, "05X")}_UNUSED', k+2, True))
+				labels.append([f'f_{format(k+2, "05X")}_UNUSED', k+2, True])
 				lines[k] += '\n'
+		count += 1
+		print(f'\rsearching for unused functions and adding newlines  {format(round(count / len(lines)) * 100, "3")}%', end = '')
 
-	for label in tuple(dict.fromkeys(labels)):
+
+	print('\rpython is good no doubt.                                \rremoving duplicate labels    0%', end = '')
+	count = 0
+	for label in [i for i in labels if i[2]]:
+		for label_ in [i for i in labels if not i[2]]:
+			if label_[1] == label[1]:
+				labels.remove(label_)
+				break
+		count += 1
+		print(f'\rremoving duplicate labels  {format(round(count / len([i for i in labels if i[2]])) * 100, "3")}%', end = '')
+
+	print('\rhey gois its quandale dingle here\rgenerating jump label names    0%', end = '')
+	count = 0
+	for label in [i for i in labels if not i[2]]:
+		for i in range(0, 0x7f, 2):
+			if label[1] - i in [i[1] for i in labels if i[2]]:
+				num = label[1] - i
+				label_name = f'.l_{format(label[1] - num, "03X")}'
+				for j in labels:
+					if j[1] == num:
+						j[0] = label_name
+						break
+				for j in range(-0x7e, 0x7f, 2):
+					if label[1] + j in lines:
+						num_ = label[1] + j
+						if '#Radr' in lines[num_] and int(lines[num_][-5], 16) == label[1]:
+							lines[num_] = lines[num_][:-6]
+							lines[num_] = lines[num_].replace('#Radr', label_name)
+				label[3] = num
+				break
+		count += 1
+		print(f'\rgenerating jump label names  {format(round(count / len([i for i in labels if not i[2]]) * 100), "3")}%', end = '')
+
+	print('\rI HATE ANIME I HATE ANIME I HATE \radding labels to disassembly    0%', end = '')
+	count = 0
+	for label in labels:
 		if label[1] in lines: lines[label[1]] = f'{label[0]}:\n' + lines[label[1]]
+		if not label[2]:
+			for i in range(-0x7e, 0x7f, 2):
+				if label[1] + i in lines and label[0] in lines[label[1] + i]:
+					j = 0
+					while True:
+						j += 2
+						for label_ in [k for k in labels if k[2]]:
+							if label_[2] and label_[1] == label[1] - j:
+								func_label = label_[0]
+								break
+					if label[3] != func_label: line = line.replace(label[0], f'{func_label}{label[0]}')
+		count += 1
+		print(f'\radding labels to disassembly  {format(round(count / len(labels) * 100), "3")}%', end = '')
 
+
+	if not stdout_file: print('\r')
 	if stdout_file: printf('''\
 ; This file was generated by PyU8disas
 ; GitHub repository: https://github.com/gamingwithevets/pyu8disas
@@ -442,6 +500,7 @@ def disassemble(interrupts: bool = True):
 
 	printf('\n' + '\n'.join(vct_table_lines.values()) + '\n')
 	printf('\n'.join(lines.values()))
+	if stdout_file: print('\rabcde                       \rdone!')
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description = 'PyU8disas - nX-U8 disassembler. Outputs assembly format.', epilog = '(c) 2023 GamingWithEvets Inc.\nLicensed under the MIT license', formatter_class=argparse.RawTextHelpFormatter, allow_abbrev = False)
@@ -462,9 +521,9 @@ if __name__ == '__main__':
 ; exception details are provided below for reference.
 
 ; ''' + '\n; '.join(traceback.format_exc().split('\n')))
-		print(traceback.format_exc())
+		print('\n' + traceback.format_exc())
 	except KeyboardInterrupt:
-		print('KeyboardInterrupt detected, exiting.')
+		print('\nKeyboardInterrupt detected, exiting.')
 		printf('''\
 ; This file was generated by PyU8disas
 ; GitHub repository: https://github.com/gamingwithevets/pyu8disas
