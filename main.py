@@ -252,15 +252,20 @@ def decode_ins():
 
 	if prefix_str: return prefix_str, ins_len, True, False
 
+	num_ints_list = [sum(isinstance(_, int) for _ in ins[0]) for ins in instructions]
+	candidates = []
+	num_ints_c = []
+
 	word, raw_bytes = read_ins()
 	raw_bytes_int = int.from_bytes(raw_bytes, 'big')
 	ins_str = f'D{"W" if ins_len == 2 else "D"} {format_hex_w(raw_bytes_int) if ins_len == 2 else format_hex_dd(raw_bytes_int)}'
-	for ins in instructions:
+	for j in range(len(instructions)):
+		ins = instructions[j]
 		score = 0
 		for i in range(len(ins[0])):
 			if type(ins[0][i]) != int: continue
 			elif word[i] == ins[0][i]: score += 1
-		num_ints = sum(isinstance(_, int) for _ in ins[0])
+		num_ints = num_ints_list[j]
 		if num_ints in (1, 4) or any(ins[1] == i for i in ('B', 'BL', 'POP', 'PUSH')) or any(i in j for i in ('#P[EA]', '#P[EA+]') for j in ins[2:]): score_cond = num_ints
 		elif any(i in j for i in ('#width', '#imm7', '#Disp6', '#bit_offset') for j in ins[2:]): score_cond = 1
 		else: score_cond = 2
@@ -281,11 +286,14 @@ def decode_ins():
 				'#bit_offset' in ins[3] and (word[2] >> 3) != ins[0][2],
 				))
 
-			if not any(conditions):
-				ins_str = ins[1]
-				if len(ins) >= 3: ins_str += ' ' + ins[2]
-				if len(ins) >= 4: ins_str += ', ' + ins[3]
-				break
+			if not any(conditions): candidates.append(j)
+
+	if len(candidates) > 0:
+		for i in candidates: num_ints_c.append(num_ints_list[i])
+		ins = instructions[candidates[num_ints_c.index(max(num_ints_c))]]
+		ins_str = ins[1]
+		if len(ins) >= 3: ins_str += ' ' + ins[2]
+		if len(ins) >= 4: ins_str += ', ' + ins[3]
 
 	if '#Dadr' in ins_str:
 		addr_temp = addr; addr += 2
@@ -368,7 +376,7 @@ def disassemble(interrupts: bool = True, addresses: bool = True):
 	else: format_ins = lambda addr = None, ins_op = None, ins_len = None, ins_str = '': f'\t{ins_str}'
 	get_op = lambda addr, length = 2: int.from_bytes(conv_little(input_file[addr:addr+length]), 'big')
 
-	print_progress = lambda: print(f'\rdisassembing address {fmt_addr(addr)}  {format(round(addr / len(input_file) * 100), "3")}%', end = '')	
+	print_progress = lambda: print(f'\rdisassembling address {fmt_addr(addr)}  {format(round(addr / len(input_file) * 100), "3")}%', end = '')	
 
 	while addr < 10 if interrupts else 6:
 		print_progress()
@@ -408,7 +416,7 @@ def disassemble(interrupts: bool = True, addresses: bool = True):
 			if last_dsr_prefix: format_ins(addr_prev, get_op(addr_prev), 2, ins_str)
 		addr += ins_len
 
-	print('\rwaltuh whiet will find you lol :)  \rsearching for unused functions and adding newlines    0%', end = '')
+	print('\rwaltuh whiet will find you lol :)   \rsearching for unused functions and adding newlines    0%', end = '')
 	count = 0
 	end_func_lines = ('POP PC', 'RT', 'RTI', 'BAL')
 	for k, v in lines.items():
@@ -421,37 +429,29 @@ def disassemble(interrupts: bool = True, addresses: bool = True):
 		count += 1
 		print(f'\rsearching for unused functions and adding newlines  {format(round(count / len(lines)) * 100, "3")}%', end = '')
 
+	addr_list = []
 	for addr, data in labels.items():
-		if data[1]:
-			first_label_addr = addr
-			break
+		if data[1]: addr_list.append(addr)
+	first_label_addr = min(addr_list)
 
 	print('\rpython is good. no doubt abt that                       \rgenerating jump label names    0%', end = '')
 	count = 0
 	for addr, data in labels.items():
 		if not data[1] and addr > first_label_addr:
+			old_label = data[0]
 			i = 0
-			found_label = False
 			while True:
 				i += 2
 				num = addr - i
-				if num < 0: continue
-				if num in labels:
-					found_label = True
-					if labels[num][1]:
-						label_name = f'.l_{format(addr - num, "03X")}'
-						labels[num][0] = label_name
+				if num in labels and labels[num][1]:
+					label_name = f'.l_{format(addr - num, "03X")}'
+					data[0] = label_name
+					data[2] = num
+					for j in range(-0xfe, 0xff, 2):
+						if addr + j in lines:
+							num_ = addr + j
+							if old_label in lines[num_]: lines[num_] = lines[num_].replace(old_label, label_name)
 					break
-				if num < 0: break
-			if found_label:
-				data[2] = num
-				for j in range(-0x7e, 0x7f, 2):
-					if addr + j in lines:
-						num_ = addr + j
-						line_split = lines[num_].split('_')
-						if '.jump_' in lines[num_] and int(line_split[1], 16) == addr:
-							lines[num_] = line_split[0]
-							lines[num_] = lines[num_].replace('.jump', label_name)
 		count += 1
 		print(f'\rgenerating jump label names  {format(round(count / len(labels) * 100), "3")}%', end = '')
 
@@ -459,31 +459,30 @@ def disassemble(interrupts: bool = True, addresses: bool = True):
 	count = 0
 	for addr, data in labels.items():
 		if not data[1] and addr < (256 if interrupts else 6):
-			for i in range(-0x7e, 0x7f, 2):
-				if addr + i in lines and data[0] in lines[addr + i]:
+			for i in range(-0xfe, 0xff, 2):
+				num_i = addr + i
+				if num_i > first_label_addr and num_i in lines and data[0] in lines[num_i]:
 					j = 0
-					found_j = False
-					while not found_j:
+					while True:
 						j += 2
-						if addr - j in labels and labels[addr - j][1] and labels[addr - j][0]:
-							found_j = True
-							func_label = labels[addr - j][0]
-						if addr - j < 0: break
-					if found_j and data[2] != addr - j and data[0].startswith('.l_'):
-						num = addr + i
-						lines[num] = lines[num][:-len(data[0])] + f'{func_label}{data[0]}'
+						num = addr - j
+						if num in labels and labels[num][1]:
+							func_label = labels[num][0]
+							if data[2] != num and data[0].startswith('.l_'): lines[num_i] = lines[num_i].replace(data[0], f'{func_label}{data[0]}')
+							break
 					break
 		if addr in lines: lines[addr] = f'{data[0]}:\n' + lines[addr]
 		count += 1
 		print(f'\radding labels to disassembly  {format(round(count / len(labels) * 100), "3")}%', end = '')
 
 
-	if not stdout_file: print('\r')
-	else: print('\rnintendo switch!!!                \rwriting to file...', end = '')
-	if stdout_file: printf('''\
+	if stdout_file:
+		print('\rnintendo switch!!!                \rwriting to file...', end = '')
+		printf('''\
 ; This file was generated by PyU8disas
 ; GitHub repository: https://github.com/gamingwithevets/pyu8disas
 ''')
+	else: print('\r')
 	printf('; Reset vectors')
 	for k, v in rst_vct_names.items():
 		if k == 6:
