@@ -80,7 +80,7 @@ instructions = (
 	((9, '#0', 3, 4), 'L', 'XR#0', '#P[EA]'),
 	((9, '#0', 5, 4), 'L', 'XR#0', '#P[EA+]'),
 	((0xf, 0, '#1', 0xa), 'LEA', '[ER#1]'),
-	((0xf, 0, 0, 0xc), 'LEA', 'Dabr'),
+	((0xf, 0, 0, 0xc), 'LEA', '#Dadr'),
 	((0xf, 0, '#1', 0xb), 'LEA', 'Disp16[ER#1]'),
 	((0xf, '#0', 2, 0xd), 'MOV', 'CER#0', '#P[EA]'),
 	((0xf, '#0', 3, 0xd), 'MOV', 'CER#0', '#P[EA+]'),
@@ -346,7 +346,9 @@ def decode_ins(interrupts = True):
 		ins_str = ins_str.replace('#P', last_dsr_prefix)
 		last_dsr_prefix = ''
 		last_dsr_prefix_str = ''
-	else: used_dsr_prefix = False
+	else:
+		ins_str = ins_str.replace('#P', '0:')
+		used_dsr_prefix = False
 
 	ins_str = ins_str.replace('#0', str(word[1]))
 	ins_str = ins_str.replace('#1', str(word[2]))
