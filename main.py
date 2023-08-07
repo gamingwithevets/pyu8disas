@@ -28,7 +28,7 @@ instructions = (
 	((6, '#0', '#imm8'), 'ADDC', 'R#0', '#imm8'),
 	((8, '#0', '#1', 2), 'AND', 'R#0', 'R#1'),
 	((2, '#0', '#imm8'), 'AND', 'R#0', '#imm8'),
-	((2, '#Cadr', 0, 0), 'B', '#Cadr'),
+	((0xf, '#Cadr', 0, 0), 'B', '#Cadr'),
 	((0xf, 0, '#0', 2), 'B', 'ER#0'),
 	((0xc, 0, '#Radr'), 'BGE', '#Radr'),
 	((0xc, 1, '#Radr'), 'BLT', '#Radr'),
@@ -81,7 +81,7 @@ instructions = (
 	((9, '#0', 5, 4), 'L', 'XR#0', '#P[EA+]'),
 	((0xf, 0, '#1', 0xa), 'LEA', '[ER#1]'),
 	((0xf, 0, 0, 0xc), 'LEA', '#P#Dadr'),
-	((0xf, 0, '#1', 0xb), 'LEA', 'Disp16[ER#1]'),
+	((0xf, 0, '#1', 0xb), 'LEA', '#Disp16[ER#1]'),
 	((0xf, '#0', 2, 0xd), 'MOV', 'CER#0', '#P[EA]'),
 	((0xf, '#0', 3, 0xd), 'MOV', 'CER#0', '#P[EA+]'),
 	((0xf, '#0', 6, 0xd), 'MOV', 'CQR#0', '#P[EA]'),
@@ -235,7 +235,6 @@ def fmt_addr(addr: int) -> str:
 def decode_ins(interrupts = True):
 	global labels, last_dsr_prefix, addr
 
-	ins_len = 2
 	prefix_word, _ = read_ins()
 	prefix_str = ''
 	for prefix in dsr_prefixes:
@@ -243,15 +242,15 @@ def decode_ins(interrupts = True):
 		for i in range(len(prefix[0])):
 			if type(prefix[0][i]) != int: continue
 			elif prefix_word[i] == prefix[0][i]: score += 1
-		if score > sum(isinstance(_, int) for _ in prefix[0]):
+		if score >= sum(isinstance(_, int) for _ in prefix[0]):
 			prefix_str = prefix[1] + ':'
-			ins_len += 2
 			break
 	prefix_str = prefix_str.replace('#pseg_addr', str(comb_nibbs(prefix_word[2:])))
 	prefix_str = prefix_str.replace('#d', str(prefix_word[2]))
 
-	if prefix_str: return prefix_str, ins_len, True, False
+	if prefix_str: return prefix_str, 2, True, False
 
+	ins_len = 2
 	num_ints_list = [sum(isinstance(_, int) for _ in ins[0]) for ins in instructions]
 	candidates = []
 	num_ints_c = []
@@ -266,7 +265,7 @@ def decode_ins(interrupts = True):
 			if type(ins[0][i]) != int: continue
 			elif word[i] == ins[0][i]: score += 1
 		num_ints = num_ints_list[j]
-		if num_ints in (1, 4) or any(ins[1] == i for i in ('B', 'BL', 'POP', 'PUSH')) or any(i in j for i in ('#P[EA]', '#P[EA+]') for j in ins[2:]): score_cond = num_ints
+		if num_ints in (1, 4) or any(ins[1] == i for i in ('B', 'BL', 'POP', 'PUSH')) or any(i in j for i in ('#P[EA]', '#P[EA+]', '#Dadr') for j in ins[2:]): score_cond = num_ints
 		elif any(i in j for i in ('#width', '#imm7', '#Disp6', '#bit_offset') for j in ins[2:]): score_cond = 1
 		else: score_cond = 2
 		if score >= score_cond and word[0] == ins[0][0]:
@@ -336,18 +335,21 @@ def decode_ins(interrupts = True):
 				skip = True
 			if not skip:
 				label_name = f'.jump_{format(radr, "04X")}'
-				labels[radr] = [label_name, False, 0]
+				if radr in labels:
+					if addr not in labels[radr][3]: labels[radr][3].append(addr)
+				else: labels[radr] = [label_name, False, 0, [addr]]
 			ins_str = ins_str.replace('#Radr', label_name)
 		else: ins_str = ins_str.replace('#Radr', fmt_addr(radr)[1:])
 
 	if '#P' in ins_str:
 		used_dsr_prefix = bool(last_dsr_prefix)
-		ins_len + 2
-		ins_str = ins_str.replace('#P', last_dsr_prefix)
-		last_dsr_prefix = ''
-		last_dsr_prefix_str = ''
+		if used_dsr_prefix:
+			ins_len += 2
+			ins_str = ins_str.replace('#P', last_dsr_prefix)
+			last_dsr_prefix = ''
+			last_dsr_prefix_str = ''
 	else:
-		ins_str = ins_str.replace('#P', '0:')
+		ins_str = ins_str.replace('#P', '')
 		used_dsr_prefix = False
 
 	ins_str = ins_str.replace('#0', str(word[1]))
@@ -404,7 +406,8 @@ def disassemble(interrupts: bool = True, addresses: bool = True):
 	while addr < len(input_file):
 		print_progress()
 		ins_str, ins_len, dsr_prefix, used_dsr_prefix = decode_ins(interrupts)
-		ins_op = get_op(addr, ins_len)
+		addr_ = addr_prev if used_dsr_prefix else addr
+		ins_op = get_op(addr_, ins_len)
 		if dsr_prefix:
 			if last_dsr_prefix:
 				lines[addr] = format_ins(addr, get_op(addr), 2, f'DW {format_hex_w(ins_op)}')
@@ -414,7 +417,7 @@ def disassemble(interrupts: bool = True, addresses: bool = True):
 				last_dsr_prefix_str = f'DW {format_hex_w(ins_op)}'
 				addr_prev = addr
 		else:
-			lines[addr] = format_ins(addr, ins_op, ins_len + (2 if used_dsr_prefix else 0), ins_str)
+			lines[addr] = format_ins(addr_, ins_op, ins_len, ins_str)
 			if last_dsr_prefix: format_ins(addr_prev, get_op(addr_prev), 2, ins_str)
 		addr += ins_len
 
@@ -436,7 +439,7 @@ def disassemble(interrupts: bool = True, addresses: bool = True):
 		if data[1]: addr_list.append(addr)
 	first_label_addr = min(addr_list)
 
-	print('\rpython is good. no doubt abt that                       \rgenerating jump label names    0%', end = '')
+	print('\rpython is good okay.                                    \rlinking labels    0%', end = '')
 	count = 0
 	for addr, data in labels.items():
 		if not data[1] and addr > first_label_addr:
@@ -455,24 +458,29 @@ def disassemble(interrupts: bool = True, addresses: bool = True):
 							if old_label in lines[num_]: lines[num_] = lines[num_].replace(old_label, label_name)
 					break
 		count += 1
-		print(f'\rgenerating jump label names  {format(round(count / len(labels) * 100), "3")}%', end = '')
+		print(f'\rlinking labels  {format(round(count / len(labels) * 100), "3")}%', end = '')
 
-	print('\rI HATE ANIME I HATE ANIME I HATE \radding labels to disassembly    0%', end = '')
+	print('\rwaltuh put ur dick away\rprocessing labels    0%', end = '')
 	count = 0
 	for addr, data in labels.items():
-		if not data[1] and addr < (256 if interrupts else 6):
-			for i in range(-0xfe, 0xff, 2):
-				num_i = addr + i
-				if num_i > first_label_addr and num_i in lines and data[0] in lines[num_i]:
-					j = 0
-					while True:
-						j += 2
-						num = addr - j
-						if num in labels and labels[num][1]:
-							func_label = labels[num][0]
-							if data[2] != num and data[0].startswith('.l_'): lines[num_i] = lines[num_i].replace(data[0], f'{func_label}{data[0]}')
-							break
-					break
+		if not data[1] and addr > first_label_addr:
+			for address in data[3]:
+				j = -2
+				while True:
+					j += 2
+					num = address - j
+					if num in labels and labels[num][1]:
+						if data[2] != num:
+							print(hex(data[2]), hex(num), labels[num][0], data[0])
+							lines[address] = lines[address].replace(data[0], f'{labels[num][0]}{data[0]}')
+						break
+					if num <= 0: break
+		count += 1
+		print(f'\rprocessing labels  {format(round(count / len(labels) * 100), "3")}%', end = '')
+
+	print('\rI HATE ANIME I HATE ANIME I HATE A\radding labels to disassembly    0%', end = '')
+	count = 0
+	for addr, data in labels.items():
 		if addr in lines: lines[addr] = f'{data[0]}:\n' + lines[addr]
 		count += 1
 		print(f'\radding labels to disassembly  {format(round(count / len(labels) * 100), "3")}%', end = '')
