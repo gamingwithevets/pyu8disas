@@ -2,7 +2,7 @@
 
 # Usage
 ```
-usage: main.py [-h] [-n] [-o output] input
+usage: main.py [-h] [-n] [-a] [-o output] input
 
 positional arguments:
   input                 name of binary file (must have even length)
@@ -11,6 +11,7 @@ options:
   -h, --help            show this help message and exit
   -n, --ignore-interrupts
                         treat the interrupt vector area as normal code
+  -a, --hide-addresses  hide addresses and operands in disassembly
   -o output, --output output
                         name of output file. if omitted the disassembly will be outputted to stdout
 ```
