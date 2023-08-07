@@ -300,7 +300,7 @@ def decode_ins(interrupts = True):
 		_, raw_bytes2 = read_ins()
 		addr = addr_temp
 		ins_len += 2
-		ins_str = ins_str.replace('#Dadr', f'{format(word[1], "X")}:{format_hex_w(int.from_bytes(raw_bytes2, "big"))}')
+		ins_str = ins_str.replace('#Dadr', format_hex_w(int.from_bytes(raw_bytes2, "big")))
 
 	if '#Disp16' in ins_str:
 		addr_temp = addr; addr += 2
