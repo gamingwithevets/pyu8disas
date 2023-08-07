@@ -232,7 +232,7 @@ def fmt_addr(addr: int) -> str:
 	low = addr & 0xFF
 	return '{:02X}:{:02X}{:02X}H'.format(csr, high, low)
 
-def decode_ins():
+def decode_ins(interrupts = True):
 	global labels, last_dsr_prefix, addr
 
 	ins_len = 2
@@ -316,7 +316,7 @@ def decode_ins():
 		ins_len += 2
 		cadr = word[1] * 0x10000 + int.from_bytes(raw_bytes2, 'big')
 		if cadr % 2 != 0: cadr -= 1
-		if cadr > 5 and cadr < len(input_file):
+		if cadr > (0xff if interrupts else 5) and cadr < len(input_file):
 			skip = False
 			if cadr in labels:
 				label_name = labels[cadr][0]
@@ -401,7 +401,7 @@ def disassemble(interrupts: bool = True, addresses: bool = True):
 
 	while addr < len(input_file):
 		print_progress()
-		ins_str, ins_len, dsr_prefix, used_dsr_prefix = decode_ins()
+		ins_str, ins_len, dsr_prefix, used_dsr_prefix = decode_ins(interrupts)
 		ins_op = get_op(addr, ins_len)
 		if dsr_prefix:
 			if last_dsr_prefix:
