@@ -327,7 +327,7 @@ def decode_ins(interrupts = True):
 		else: ins_str = ins_str.replace('#Cadr', fmt_addr(cadr))
 
 	if '#Radr' in ins_str:
-		radr = addr + ins_len + ctypes.c_byte(comb_nibbs(word[2:])).value * 2
+		radr = addr + 2 + ctypes.c_byte(comb_nibbs(word[2:])).value * 2
 		if radr > 5 and radr < len(input_file):
 			skip = False
 			if radr in labels:
@@ -348,9 +348,8 @@ def decode_ins(interrupts = True):
 			ins_str = ins_str.replace('#P', last_dsr_prefix)
 			last_dsr_prefix = ''
 			last_dsr_prefix_str = ''
-	else:
-		ins_str = ins_str.replace('#P', '')
-		used_dsr_prefix = False
+		else: ins_str = ins_str.replace('#P', '')
+	else: used_dsr_prefix = False
 
 	ins_str = ins_str.replace('#0', str(word[1]))
 	ins_str = ins_str.replace('#1', str(word[2]))
@@ -470,11 +469,9 @@ def disassemble(interrupts: bool = True, addresses: bool = True):
 					j += 2
 					num = address - j
 					if num in labels and labels[num][1]:
-						if data[2] != num:
-							print(hex(data[2]), hex(num), labels[num][0], data[0])
-							lines[address] = lines[address].replace(data[0], f'{labels[num][0]}{data[0]}')
+						if data[2] != num: lines[address] = lines[address].replace(data[0], f'{labels[data[2]][0]}{data[0]}')
 						break
-					if num <= 0: break
+					if j >= 0x100: break
 		count += 1
 		print(f'\rprocessing labels  {format(round(count / len(labels) * 100), "3")}%', end = '')
 
