@@ -7,7 +7,7 @@ import traceback
 class signed6(ctypes.Structure):
 	_fields_ = [('value', ctypes.c_byte, 6)]
 
-	def __init__(self, value: int = 0): self.value = value & 0x1f
+	def __init__(self, value: int = 0): self.value = value & 0x3f
 	def __repr__(self): return f'signed6({self.value})'
 	def __str__(self): return str(self.value)
 
@@ -265,7 +265,7 @@ def decode_ins(interrupts = True):
 			if type(ins[0][i]) != int: continue
 			elif word[i] == ins[0][i]: score += 1
 		num_ints = num_ints_list[j]
-		if num_ints in (1, 4) or any(ins[1] == i for i in ('B', 'BL', 'POP', 'PUSH')) or any(i in j for i in ('#P[EA]', '#P[EA+]', '#Dadr') for j in ins[2:]): score_cond = num_ints
+		if num_ints in (1, 4) or any(ins[1] == i for i in ('B', 'BL', 'DAA', 'DAS', 'POP', 'PUSH')) or any(i in j for i in ('#P[EA]', '#P[EA+]', '#Dadr') for j in ins[2:]): score_cond = num_ints
 		elif any(i in j for i in ('#width', '#imm7', '#Disp6', '#bit_offset') for j in ins[2:]): score_cond = 1
 		else: score_cond = 2
 		if score >= score_cond and word[0] == ins[0][0]:
@@ -381,7 +381,7 @@ def disassemble(interrupts: bool = True, addresses: bool = True):
 
 	print_progress = lambda: print(f'\rdisassembling address {fmt_addr(addr)}  {format(round(addr / len(input_file) * 100), "3")}%', end = '')	
 
-	while addr < 10 if interrupts else 6:
+	while addr < (10 if interrupts else 6):
 		print_progress()
 		ins_op = get_op(addr)
 		vct_table_lines[addr] = format_ins(addr, ins_op, 2, f'DW {rst_vct_names[addr]}')
