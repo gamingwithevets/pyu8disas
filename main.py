@@ -96,7 +96,7 @@ instructions = (
 	((0xa, 0, '#1', 0xc), 'MOV', 'EPSW', 'R#1'),
 	((0xa, '#0', 0, 5), 'MOV', 'ER#1', 'ELR'),
 	((0xf, '#0', '#1', 5), 'MOV', 'ER#0', 'ER#1'),
-	((0xf, '#0', 0, '#imm7'), 'MOV', 'ER#0', '#imm7'),
+	((0xe, '#0', 0, '#imm7'), 'MOV', 'ER#0', '#imm7'),
 	((0xa, '#0', 1, 0xa), 'MOV', 'ER#0', 'SP'),
 	((0xf, '#1', 0xa, 0xd), 'MOV', '#P[EA]', 'CER#1'),
 	((0xf, '#1', 0xb, 0xd), 'MOV', '#P[EA+]', 'CER#1'),
