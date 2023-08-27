@@ -129,31 +129,31 @@ instructions = (
 	((0xf, 7, 8, 0xe), 'POP', 'EA, PC, PSW'),
 	((0xf, 8, 8, 0xe), 'POP', 'LR'),
 	((0xf, 9, 8, 0xe), 'POP', 'EA, LR'),
-	((0xf, 0xa, 8, 0xe), 'POP', 'PC, LR'),
-	((0xf, 0xb, 8, 0xe), 'POP', 'EA, PC, LR'),
-	((0xf, 0xc, 8, 0xe), 'POP', 'PSW, LR'),
-	((0xf, 0xd, 8, 0xe), 'POP', 'EA, PSW, LR'),
-	((0xf, 0xe, 8, 0xe), 'POP', 'PC, PSW, LR'),
-	((0xf, 0xf, 8, 0xe), 'POP', 'EA, PC, PSW, LR'),
+	((0xf, 0xa, 8, 0xe), 'POP', 'LR, PC'),
+	((0xf, 0xb, 8, 0xe), 'POP', 'EA, LR, PC'),
+	((0xf, 0xc, 8, 0xe), 'POP', 'LR, PSW'),
+	((0xf, 0xd, 8, 0xe), 'POP', 'EA, LR, PSW'),
+	((0xf, 0xe, 8, 0xe), 'POP', 'LR, PSW, PC'),
+	((0xf, 0xf, 8, 0xe), 'POP', 'EA, LR, PSW, PC'),
 	((0xf, '#0', 0, 0xe), 'POP', 'R#0'),
 	((0xf, '#0', 1, 0xe), 'POP', 'ER#0'),
 	((0xf, '#0', 2, 0xe), 'POP', 'XR#0'),
 	((0xf, '#0', 3, 0xe), 'POP', 'QR#0'),
 	((0xf, 1, 0xc, 0xe), 'PUSH', 'EA'),
-	((0xf, 2, 0xc, 0xe), 'PUSH', 'PC'),
-	((0xf, 3, 0xc, 0xe), 'PUSH', 'EA, PC'),
-	((0xf, 4, 0xc, 0xe), 'PUSH', 'PSW'),
-	((0xf, 5, 0xc, 0xe), 'PUSH', 'EA, PSW'),
-	((0xf, 6, 0xc, 0xe), 'PUSH', 'PC, PSW'),
-	((0xf, 7, 0xc, 0xe), 'PUSH', 'EA, PC, PSW'),
+	((0xf, 2, 0xc, 0xe), 'PUSH', 'ELR'),
+	((0xf, 3, 0xc, 0xe), 'PUSH', 'ELR, EA'),
+	((0xf, 4, 0xc, 0xe), 'PUSH', 'EPSW'),
+	((0xf, 5, 0xc, 0xe), 'PUSH', 'EPSW, EA'),
+	((0xf, 6, 0xc, 0xe), 'PUSH', 'ELR, EPSW'),
+	((0xf, 7, 0xc, 0xe), 'PUSH', 'ELR, EPSW, EA'),
 	((0xf, 8, 0xc, 0xe), 'PUSH', 'LR'),
-	((0xf, 9, 0xc, 0xe), 'PUSH', 'EA, LR'),
-	((0xf, 0xa, 0xc, 0xe), 'PUSH', 'PC, LR'),
-	((0xf, 0xb, 0xc, 0xe), 'PUSH', 'EA, PC, LR'),
-	((0xf, 0xc, 0xc, 0xe), 'PUSH', 'PSW, LR'),
-	((0xf, 0xd, 0xc, 0xe), 'PUSH', 'EA, PSW, LR'),
-	((0xf, 0xe, 0xc, 0xe), 'PUSH', 'PC, PSW, LR'),
-	((0xf, 0xf, 0xc, 0xe), 'PUSH', 'EA, PC, PSW, LR'),
+	((0xf, 9, 0xc, 0xe), 'PUSH', 'LR, EA'),
+	((0xf, 0xa, 0xc, 0xe), 'PUSH', 'ELR, LR'),
+	((0xf, 0xb, 0xc, 0xe), 'PUSH', 'ELR, LR, EA'),
+	((0xf, 0xc, 0xc, 0xe), 'PUSH', 'EPSW, LR'),
+	((0xf, 0xd, 0xc, 0xe), 'PUSH', 'EPSW, LR, EA'),
+	((0xf, 0xe, 0xc, 0xe), 'PUSH', 'EPSW, ELR, LR'),
+	((0xf, 0xf, 0xc, 0xe), 'PUSH', 'ELR, EPSW, LR, EA'),
 	((0xf, '#0', 4, 0xe), 'PUSH', 'R#0'),
 	((0xf, '#0', 5, 0xe), 'PUSH', 'ER#0'),
 	((0xf, '#0', 6, 0xe), 'PUSH', 'XR#0'),
@@ -220,17 +220,17 @@ def conv_nibbs(data: bytes) -> tuple: return (data[0] >> 4) & 0xf, data[0] & 0xf
 def comb_nibbs(data: tuple) -> int: return int(hex(data[0]) + hex(data[1])[2:], 16)
 
 def format_hex(data: int) -> str: return format(data, '02X') + 'H'
-def format_hex_sign(data: int) -> str: return format(data, '+X') + 'H'
+def format_hex_sign(data: int, digits = 1) -> str: return format(data, f'+0{digits}X') + 'H'
 def format_hex_w(data: int) -> str: return format(data, '04X') + 'H'
 def format_hex_dd(data: int) -> str: return format(data, '08X') + 'H'
 
 def conv_little(data: bytes) -> bytes: return bytes([c for t in zip(data[1::2], data[::2]) for c in t])
 
 def fmt_addr(addr: int) -> str:
-	csr = (addr & 0xFF0000) >> 16
-	high = (addr & 0xFF00) >> 8
-	low = addr & 0xFF
-	return '{:02X}:{:02X}{:02X}H'.format(csr, high, low)
+	csr = (addr & 0xff0000) >> 16
+	high = (addr & 0xff00) >> 8
+	low = addr & 0xf
+	return f'{csr:X}:{high:02X}{low:02X}H'
 
 def decode_ins(interrupts = True):
 	global labels, last_dsr_prefix, addr
@@ -306,7 +306,7 @@ def decode_ins(interrupts = True):
 		_, raw_bytes2 = read_ins()
 		addr = addr_temp
 		ins_len += 2
-		ins_str = ins_str.replace('#Disp16', format_hex_sign(ctypes.c_short(int.from_bytes(raw_bytes2, "big")).value))
+		ins_str = ins_str.replace('#Disp16', format_hex_sign(ctypes.c_short(int.from_bytes(raw_bytes2, "big")).value, 4))
 
 	if '#Cadr' in ins_str:
 		addr_temp = addr; addr += 2
@@ -356,7 +356,7 @@ def decode_ins(interrupts = True):
 	ins_str = ins_str.replace('#bit_offset', str(word[2] & 7))
 	ins_str = ins_str.replace('#imm8', f'#{format_hex(comb_nibbs(word[2:]))}')
 	ins_str = ins_str.replace('#unsigned8', f'#{format_hex(comb_nibbs(word[2:]))}')
-	ins_str = ins_str.replace('#signed8', format_hex_sign(ctypes.c_byte(comb_nibbs(word[2:])).value))
+	ins_str = ins_str.replace('#signed8', format_hex_sign(ctypes.c_byte(comb_nibbs(word[2:])).value, 2))
 	ins_str = ins_str.replace('#imm7', f'#{format_hex(comb_nibbs((word[2] & 7, word[3])))}')
 	ins_str = ins_str.replace('#width', str(word[2] & 7))
 	ins_str = ins_str.replace('#Disp6', format_hex_sign(signed6(comb_nibbs((word[2] & 3, word[3]))).value))
