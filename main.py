@@ -227,9 +227,9 @@ def format_hex_dd(data: int) -> str: return format(data, '08X') + 'H'
 def conv_little(data: bytes) -> bytes: return bytes([c for t in zip(data[1::2], data[::2]) for c in t])
 
 def fmt_addr(addr: int) -> str:
-	csr = (addr & 0xff0000) >> 16
+	csr = (addr & 0xf0000) >> 16
 	high = (addr & 0xff00) >> 8
-	low = addr & 0xf
+	low = addr & 0xff
 	return f'{csr:X}:{high:02X}{low:02X}H'
 
 def decode_ins(interrupts = True):
@@ -271,18 +271,16 @@ def decode_ins(interrupts = True):
 		if score >= score_cond and word[0] == ins[0][0]:
 			conditions = [ins[0][1] == '#1+1' and word[2] != ins[0][2], type(ins[0][-1]) == int and word[3] != ins[0][3]]
 			if len(ins) > 2: conditions.extend((
-				ins[2] == '#width' and (word[2] >> 3) != ins[0][2],
-				ins[2] == '#imm7' and (word[2] >> 3) != ins[0][2],
 				'ER#0' in ins[2] and (word[1] & 1) != 0,
 				'XR#0' in ins[2] and (word[1] & 2) != 0,
 				'QR#0' in ins[2] and (word[1] & 3) != 0,
 				))
 			if len(ins) > 3: conditions.extend((
+				ins[3] in ('#width', '#imm7') and ((word[2] >> 3) & 1) != ins[0][2],
 				'ER#1' in ins[3] and (word[2] & 1) != 0,
 				'XR#1' in ins[3] and (word[2] & 2) != 0,
 				'QR#1' in ins[3] and (word[2] & 3) != 0,
-				'#Disp6' in ins[3] and (word[2] >> 2) != ins[0][2],
-				'#bit_offset' in ins[3] and (word[2] >> 3) != ins[0][2],
+				('#Disp6' in ins[3] or '#bit_offset' in ins[3]) and word[2] & ((1 << 2) - 1) != ins[0][2],
 				))
 
 			if not any(conditions): candidates.append(j)
