@@ -2,7 +2,7 @@
 
 # Usage
 ```
-usage: main.py [-h] [-n] [-a] [-o output] input
+usage: main.py [-h] [-n] [-a] [-u] [-o output] input
 
 positional arguments:
   input                 name of binary file (must have even length)
@@ -12,6 +12,7 @@ options:
   -n, --ignore-interrupts
                         treat the interrupt vector area as normal code
   -a, --hide-addresses  hide addresses and operands in disassembly
+  -u, --no-unused       don't add the _UNUSED suffix for unused functions
   -o output, --output output
                         name of output file. if omitted the disassembly will be outputted to stdout
 ```
