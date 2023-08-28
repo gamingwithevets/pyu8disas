@@ -7,7 +7,7 @@ import traceback
 class signed6(ctypes.Structure):
 	_fields_ = [('value', ctypes.c_byte, 6)]
 
-	def __init__(self, value: int = 0): self.value = value & 0x1f
+	def __init__(self, value: int = 0): self.value = value & 0x3f
 	def __repr__(self): return f'signed6({self.value})'
 	def __str__(self): return str(self.value)
 
@@ -96,7 +96,7 @@ instructions = (
 	((0xa, 0, '#1', 0xc), 'MOV', 'EPSW', 'R#1'),
 	((0xa, '#0', 0, 5), 'MOV', 'ER#1', 'ELR'),
 	((0xf, '#0', '#1', 5), 'MOV', 'ER#0', 'ER#1'),
-	((0xf, '#0', 0, '#imm7'), 'MOV', 'ER#0', '#imm7'),
+	((0xe, '#0', 0, '#imm7'), 'MOV', 'ER#0', '#imm7'),
 	((0xa, '#0', 1, 0xa), 'MOV', 'ER#0', 'SP'),
 	((0xf, '#1', 0xa, 0xd), 'MOV', '#P[EA]', 'CER#1'),
 	((0xf, '#1', 0xb, 0xd), 'MOV', '#P[EA+]', 'CER#1'),
@@ -129,31 +129,31 @@ instructions = (
 	((0xf, 7, 8, 0xe), 'POP', 'EA, PC, PSW'),
 	((0xf, 8, 8, 0xe), 'POP', 'LR'),
 	((0xf, 9, 8, 0xe), 'POP', 'EA, LR'),
-	((0xf, 0xa, 8, 0xe), 'POP', 'PC, LR'),
-	((0xf, 0xb, 8, 0xe), 'POP', 'EA, PC, LR'),
-	((0xf, 0xc, 8, 0xe), 'POP', 'PSW, LR'),
-	((0xf, 0xd, 8, 0xe), 'POP', 'EA, PSW, LR'),
-	((0xf, 0xe, 8, 0xe), 'POP', 'PC, PSW, LR'),
-	((0xf, 0xf, 8, 0xe), 'POP', 'EA, PC, PSW, LR'),
+	((0xf, 0xa, 8, 0xe), 'POP', 'LR, PC'),
+	((0xf, 0xb, 8, 0xe), 'POP', 'EA, LR, PC'),
+	((0xf, 0xc, 8, 0xe), 'POP', 'LR, PSW'),
+	((0xf, 0xd, 8, 0xe), 'POP', 'EA, LR, PSW'),
+	((0xf, 0xe, 8, 0xe), 'POP', 'LR, PSW, PC'),
+	((0xf, 0xf, 8, 0xe), 'POP', 'EA, LR, PSW, PC'),
 	((0xf, '#0', 0, 0xe), 'POP', 'R#0'),
 	((0xf, '#0', 1, 0xe), 'POP', 'ER#0'),
 	((0xf, '#0', 2, 0xe), 'POP', 'XR#0'),
 	((0xf, '#0', 3, 0xe), 'POP', 'QR#0'),
 	((0xf, 1, 0xc, 0xe), 'PUSH', 'EA'),
-	((0xf, 2, 0xc, 0xe), 'PUSH', 'PC'),
-	((0xf, 3, 0xc, 0xe), 'PUSH', 'EA, PC'),
-	((0xf, 4, 0xc, 0xe), 'PUSH', 'PSW'),
-	((0xf, 5, 0xc, 0xe), 'PUSH', 'EA, PSW'),
-	((0xf, 6, 0xc, 0xe), 'PUSH', 'PC, PSW'),
-	((0xf, 7, 0xc, 0xe), 'PUSH', 'EA, PC, PSW'),
+	((0xf, 2, 0xc, 0xe), 'PUSH', 'ELR'),
+	((0xf, 3, 0xc, 0xe), 'PUSH', 'ELR, EA'),
+	((0xf, 4, 0xc, 0xe), 'PUSH', 'EPSW'),
+	((0xf, 5, 0xc, 0xe), 'PUSH', 'EPSW, EA'),
+	((0xf, 6, 0xc, 0xe), 'PUSH', 'ELR, EPSW'),
+	((0xf, 7, 0xc, 0xe), 'PUSH', 'ELR, EPSW, EA'),
 	((0xf, 8, 0xc, 0xe), 'PUSH', 'LR'),
-	((0xf, 9, 0xc, 0xe), 'PUSH', 'EA, LR'),
-	((0xf, 0xa, 0xc, 0xe), 'PUSH', 'PC, LR'),
-	((0xf, 0xb, 0xc, 0xe), 'PUSH', 'EA, PC, LR'),
-	((0xf, 0xc, 0xc, 0xe), 'PUSH', 'PSW, LR'),
-	((0xf, 0xd, 0xc, 0xe), 'PUSH', 'EA, PSW, LR'),
-	((0xf, 0xe, 0xc, 0xe), 'PUSH', 'PC, PSW, LR'),
-	((0xf, 0xf, 0xc, 0xe), 'PUSH', 'EA, PC, PSW, LR'),
+	((0xf, 9, 0xc, 0xe), 'PUSH', 'LR, EA'),
+	((0xf, 0xa, 0xc, 0xe), 'PUSH', 'ELR, LR'),
+	((0xf, 0xb, 0xc, 0xe), 'PUSH', 'ELR, LR, EA'),
+	((0xf, 0xc, 0xc, 0xe), 'PUSH', 'EPSW, LR'),
+	((0xf, 0xd, 0xc, 0xe), 'PUSH', 'EPSW, LR, EA'),
+	((0xf, 0xe, 0xc, 0xe), 'PUSH', 'EPSW, ELR, LR'),
+	((0xf, 0xf, 0xc, 0xe), 'PUSH', 'ELR, EPSW, LR, EA'),
 	((0xf, '#0', 4, 0xe), 'PUSH', 'R#0'),
 	((0xf, '#0', 5, 0xe), 'PUSH', 'ER#0'),
 	((0xf, '#0', 6, 0xe), 'PUSH', 'XR#0'),
@@ -220,17 +220,17 @@ def conv_nibbs(data: bytes) -> tuple: return (data[0] >> 4) & 0xf, data[0] & 0xf
 def comb_nibbs(data: tuple) -> int: return int(hex(data[0]) + hex(data[1])[2:], 16)
 
 def format_hex(data: int) -> str: return format(data, '02X') + 'H'
-def format_hex_sign(data: int) -> str: return format(data, '+X') + 'H'
+def format_hex_sign(data: int, digits = 1) -> str: return format(data, f'+0{digits}X') + 'H'
 def format_hex_w(data: int) -> str: return format(data, '04X') + 'H'
 def format_hex_dd(data: int) -> str: return format(data, '08X') + 'H'
 
 def conv_little(data: bytes) -> bytes: return bytes([c for t in zip(data[1::2], data[::2]) for c in t])
 
 def fmt_addr(addr: int) -> str:
-	csr = (addr & 0xFF0000) >> 16
-	high = (addr & 0xFF00) >> 8
-	low = addr & 0xFF
-	return '{:02X}:{:02X}{:02X}H'.format(csr, high, low)
+	csr = (addr & 0xf0000) >> 16
+	high = (addr & 0xff00) >> 8
+	low = addr & 0xff
+	return f'{csr:X}:{high:02X}{low:02X}H'
 
 def decode_ins(interrupts = True):
 	global labels, last_dsr_prefix, addr
@@ -265,24 +265,22 @@ def decode_ins(interrupts = True):
 			if type(ins[0][i]) != int: continue
 			elif word[i] == ins[0][i]: score += 1
 		num_ints = num_ints_list[j]
-		if num_ints in (1, 4) or any(ins[1] == i for i in ('B', 'BL', 'POP', 'PUSH')) or any(i in j for i in ('#P[EA]', '#P[EA+]', '#Dadr') for j in ins[2:]): score_cond = num_ints
+		if num_ints in (1, 4) or any(ins[1] == i for i in ('B', 'BL', 'DAA', 'DAS', 'POP', 'PUSH')) or any(i in j for i in ('#P[EA]', '#P[EA+]', '#Dadr') for j in ins[2:]): score_cond = num_ints
 		elif any(i in j for i in ('#width', '#imm7', '#Disp6', '#bit_offset') for j in ins[2:]): score_cond = 1
 		else: score_cond = 2
 		if score >= score_cond and word[0] == ins[0][0]:
 			conditions = [ins[0][1] == '#1+1' and word[2] != ins[0][2], type(ins[0][-1]) == int and word[3] != ins[0][3]]
 			if len(ins) > 2: conditions.extend((
-				ins[2] == '#width' and (word[2] >> 3) != ins[0][2],
-				ins[2] == '#imm7' and (word[2] >> 3) != ins[0][2],
 				'ER#0' in ins[2] and (word[1] & 1) != 0,
 				'XR#0' in ins[2] and (word[1] & 2) != 0,
 				'QR#0' in ins[2] and (word[1] & 3) != 0,
 				))
 			if len(ins) > 3: conditions.extend((
+				ins[3] in ('#width', '#imm7') and ((word[2] >> 3) & 1) != ins[0][2],
 				'ER#1' in ins[3] and (word[2] & 1) != 0,
 				'XR#1' in ins[3] and (word[2] & 2) != 0,
 				'QR#1' in ins[3] and (word[2] & 3) != 0,
-				'#Disp6' in ins[3] and (word[2] >> 2) != ins[0][2],
-				'#bit_offset' in ins[3] and (word[2] >> 3) != ins[0][2],
+				('#Disp6' in ins[3] or '#bit_offset' in ins[3]) and word[2] & ((1 << 2) - 1) != ins[0][2],
 				))
 
 			if not any(conditions): candidates.append(j)
@@ -306,7 +304,7 @@ def decode_ins(interrupts = True):
 		_, raw_bytes2 = read_ins()
 		addr = addr_temp
 		ins_len += 2
-		ins_str = ins_str.replace('#Disp16', format_hex_sign(ctypes.c_short(int.from_bytes(raw_bytes2, "big")).value))
+		ins_str = ins_str.replace('#Disp16', format_hex_sign(ctypes.c_short(int.from_bytes(raw_bytes2, "big")).value, 4))
 
 	if '#Cadr' in ins_str:
 		addr_temp = addr; addr += 2
@@ -356,7 +354,7 @@ def decode_ins(interrupts = True):
 	ins_str = ins_str.replace('#bit_offset', str(word[2] & 7))
 	ins_str = ins_str.replace('#imm8', f'#{format_hex(comb_nibbs(word[2:]))}')
 	ins_str = ins_str.replace('#unsigned8', f'#{format_hex(comb_nibbs(word[2:]))}')
-	ins_str = ins_str.replace('#signed8', format_hex_sign(ctypes.c_byte(comb_nibbs(word[2:])).value))
+	ins_str = ins_str.replace('#signed8', format_hex_sign(ctypes.c_byte(comb_nibbs(word[2:])).value, 2))
 	ins_str = ins_str.replace('#imm7', f'#{format_hex(comb_nibbs((word[2] & 7, word[3])))}')
 	ins_str = ins_str.replace('#width', str(word[2] & 7))
 	ins_str = ins_str.replace('#Disp6', format_hex_sign(signed6(comb_nibbs((word[2] & 3, word[3]))).value))
@@ -381,7 +379,7 @@ def disassemble(interrupts: bool = True, addresses: bool = True):
 
 	print_progress = lambda: print(f'\rdisassembling address {fmt_addr(addr)}  {format(round(addr / len(input_file) * 100), "3")}%', end = '')	
 
-	while addr < 10 if interrupts else 6:
+	while addr < (10 if interrupts else 6):
 		print_progress()
 		ins_op = get_op(addr)
 		vct_table_lines[addr] = format_ins(addr, ins_op, 2, f'DW {rst_vct_names[addr]}')
