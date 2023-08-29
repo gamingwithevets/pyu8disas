@@ -265,9 +265,12 @@ def decode_ins(interrupts = True):
 			if type(ins[0][i]) != int: continue
 			elif word[i] == ins[0][i]: score += 1
 		num_ints = num_ints_list[j]
-		if num_ints in (1, 4) or any(ins[1] == i for i in ('B', 'BL', 'DAA', 'DAS', 'POP', 'PUSH')) or any(i in j for i in ('#P[EA]', '#P[EA+]', '#Dadr') for j in ins[2:]): score_cond = num_ints
-		elif any(i in j for i in ('#width', '#imm7', '#Disp6', '#bit_offset') for j in ins[2:]): score_cond = 1
-		else: score_cond = 2
+		score_cond = None
+		if num_ints in (1, 4) or any(ins[1] == i for i in ('B', 'BL', 'DAA', 'DAS', 'POP', 'PUSH')) or any(i in j for i in ('#P[EA]', '#P[EA+]', '#Dadr') for j in ins[2:]):
+			if not any(ins[1] == i for i in ('RB', 'SB', 'TB')): score_cond = num_ints
+		if score_cond is None:
+			if any(i in j for i in ('#width', '#imm7', '#Disp6') for j in ins[2:]): score_cond = 1
+			else: score_cond = 2
 		if score >= score_cond and word[0] == ins[0][0]:
 			conditions = [ins[0][1] == '#1+1' and word[2] != ins[0][2], type(ins[0][-1]) == int and word[3] != ins[0][3]]
 			if len(ins) > 2: conditions.extend((
@@ -280,7 +283,8 @@ def decode_ins(interrupts = True):
 				'ER#1' in ins[3] and (word[2] & 1) != 0,
 				'XR#1' in ins[3] and (word[2] & 2) != 0,
 				'QR#1' in ins[3] and (word[2] & 3) != 0,
-				('#Disp6' in ins[3] or '#bit_offset' in ins[3]) and (word[2] >> 2) & 3 != ins[0][2],
+				'#Disp6' in ins[3] and (word[2] >> 2) & 3 != ins[0][2],
+				'bit_offset' in ins[3] and (word[2] >> 3) & 1 != ins[0][2],
 				))
 
 			if not any(conditions): candidates.append(j)
