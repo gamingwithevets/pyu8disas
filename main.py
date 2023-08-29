@@ -420,13 +420,19 @@ def disassemble(interrupts: bool = True, addresses: bool = True, unused_funcs: b
 
 	print('\rwaltuh whiet will find you lol :)   \rsearching for unused functions and adding newlines    0%', end = '')
 	count = 0
-	end_func_lines = ('POP PC', 'RT', 'RTI', 'BAL', 'B')
+	end_func_lines = ('POP PC', 'RT', 'RTI', 'BAL')
 	for k, v in lines.items():
-		if any(j + ' ' in v for j in end_func_lines):
+		if any(f'\t{j}' in v for j in end_func_lines):
 			if k+2 in labels:
 				if labels[k+2][1]: lines[k] += '\n'
 			else:
 				labels[k+2] = [f'f_{format(k+2, "05X")}{"_UNUSED" if unused_funcs else ""}', True]
+				lines[k] += '\n'
+		elif '\tB ' in v:
+			if k+4 in labels:
+				if labels[k+4][1]: lines[k] += '\n'
+			else:
+				labels[k+4] = [f'f_{format(k+4, "05X")}{"_UNUSED" if unused_funcs else ""}', True]
 				lines[k] += '\n'
 		count += 1
 		print(f'\rsearching for unused functions and adding newlines  {format(round(count / len(lines)) * 100, "3")}%', end = '')
