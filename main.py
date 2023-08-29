@@ -276,11 +276,11 @@ def decode_ins(interrupts = True):
 				'QR#0' in ins[2] and (word[1] & 3) != 0,
 				))
 			if len(ins) > 3: conditions.extend((
-				ins[3] in ('#width', '#imm7') and ((word[2] >> 3) & 1) != ins[0][2],
+				ins[3] in ('#width', '#imm7') and (word[2] >> 3) & 1 != ins[0][2],
 				'ER#1' in ins[3] and (word[2] & 1) != 0,
 				'XR#1' in ins[3] and (word[2] & 2) != 0,
 				'QR#1' in ins[3] and (word[2] & 3) != 0,
-				('#Disp6' in ins[3] or '#bit_offset' in ins[3]) and word[2] & ((1 << 2) - 1) != ins[0][2],
+				('#Disp6' in ins[3] or '#bit_offset' in ins[3]) and (word[2] >> 2) & 3 != ins[0][2],
 				))
 
 			if not any(conditions): candidates.append(j)
