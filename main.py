@@ -420,9 +420,9 @@ def disassemble(interrupts: bool = True, addresses: bool = True, unused_funcs: b
 
 	print('\rwaltuh whiet will find you lol :)   \rsearching for unused functions and adding newlines    0%', end = '')
 	count = 0
-	end_func_lines = ('POP PC', 'RT', 'RTI', 'BAL')
+	end_func_lines = ('POP PC', 'RT', 'RTI', 'BAL', 'B')
 	for k, v in lines.items():
-		if any(j in v for j in end_func_lines):
+		if any(j + ' ' in v for j in end_func_lines):
 			if k+2 in labels:
 				if labels[k+2][1]: lines[k] += '\n'
 			else:
