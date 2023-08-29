@@ -373,7 +373,7 @@ def disassemble(interrupts: bool = True, addresses: bool = True, unused_funcs: b
 	lines = {}
 
 	tab = '\t'
-	if addresses: format_ins = lambda addr, ins_op, ins_len, ins_str: f'{fmt_addr(addr)}\t{format(ins_op, "0"+str(ins_len*2)+"X")}\t{tab if ins_len < 3 else ""}{ins_str}'
+	if addresses: format_ins = lambda addr, ins_op, ins_len, ins_str: f'{fmt_addr(addr)}\t{format(ins_op, "0"+str(ins_len*2)+"X")}\t{tab if ins_len < 3 else ""}{tab if ins_len < 5 else ""}{ins_str}'
 	else: format_ins = lambda addr = None, ins_op = None, ins_len = None, ins_str = '': f'\t{ins_str}'
 	get_op = lambda addr, length = 2: int.from_bytes(conv_little(input_file[addr:addr+length]), 'big')
 
