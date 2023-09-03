@@ -220,7 +220,7 @@ def conv_nibbs(data: bytes) -> tuple: return (data[0] >> 4) & 0xf, data[0] & 0xf
 def comb_nibbs(data: tuple) -> int: return int(hex(data[0]) + hex(data[1])[2:], 16)
 
 def format_hex(data: int) -> str: return format(data, '02X') + 'H'
-def format_hex_sign(data: int, digits = 1) -> str: return format(data, f'+0{digits}X') + 'H'
+def format_hex_sign(data: int, digits = 1) -> str: return format(data, f'+0{digits+1}X') + 'H'
 def format_hex_w(data: int) -> str: return format(data, '04X') + 'H'
 def format_hex_dd(data: int) -> str: return format(data, '08X') + 'H'
 
