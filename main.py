@@ -329,7 +329,8 @@ def decode_ins(interrupts = True):
 		else: ins_str = ins_str.replace('#Cadr', fmt_addr(cadr))
 
 	if '#Radr' in ins_str:
-		radr = addr + 2 + ctypes.c_byte(comb_nibbs(word[2:])).value * 2
+		skip = ctypes.c_byte(comb_nibbs(word[2:])).value * 2
+		radr = addr + 2 + skip
 		if radr > 5 and radr < len(input_file):
 			skip = False
 			if radr in labels:
@@ -341,7 +342,7 @@ def decode_ins(interrupts = True):
 					if addr not in labels[radr][3]: labels[radr][3].append(addr)
 				else: labels[radr] = [label_name, False, 0, [addr]]
 			ins_str = ins_str.replace('#Radr', label_name)
-		else: ins_str = ins_str.replace('#Radr', fmt_addr(radr)[1:])
+		else: ins_str = ins_str.replace('#Radr', format_hex_sign(skip))
 
 	if '#P' in ins_str:
 		used_dsr_prefix = bool(last_dsr_prefix)
