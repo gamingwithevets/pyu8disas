@@ -220,7 +220,7 @@ def conv_nibbs(data: bytes) -> tuple: return (data[0] >> 4) & 0xf, data[0] & 0xf
 def comb_nibbs(data: tuple) -> int: return int(hex(data[0]) + hex(data[1])[2:], 16)
 
 def format_hex(data: int) -> str: return format(data, '02X') + 'H'
-def format_hex_sign(data: int, digits = 1) -> str: return format(data, f'+0{digits}X') + 'H'
+def format_hex_sign(data: int, digits = 1) -> str: return format(data, f'+0{digits+1}X') + 'H'
 def format_hex_w(data: int) -> str: return format(data, '04X') + 'H'
 def format_hex_dd(data: int) -> str: return format(data, '08X') + 'H'
 
@@ -265,9 +265,12 @@ def decode_ins(interrupts = True):
 			if type(ins[0][i]) != int: continue
 			elif word[i] == ins[0][i]: score += 1
 		num_ints = num_ints_list[j]
-		if num_ints in (1, 4) or any(ins[1] == i for i in ('B', 'BL', 'DAA', 'DAS', 'POP', 'PUSH')) or any(i in j for i in ('#P[EA]', '#P[EA+]', '#Dadr') for j in ins[2:]): score_cond = num_ints
-		elif any(i in j for i in ('#width', '#imm7', '#Disp6', '#bit_offset') for j in ins[2:]): score_cond = 1
-		else: score_cond = 2
+		score_cond = None
+		if num_ints in (1, 4) or any(ins[1] == i for i in ('B', 'BL', 'DAA', 'DAS', 'POP', 'PUSH')) or any(i in j for i in ('#P[EA]', '#P[EA+]', '#Dadr') for j in ins[2:]):
+			if not any(ins[1] == i for i in ('RB', 'SB', 'TB')): score_cond = num_ints
+		if score_cond is None:
+			if any(i in j for i in ('#width', '#imm7', '#Disp6') for j in ins[2:]): score_cond = 1
+			else: score_cond = 2
 		if score >= score_cond and word[0] == ins[0][0]:
 			conditions = [ins[0][1] == '#1+1' and word[2] != ins[0][2], type(ins[0][-1]) == int and word[3] != ins[0][3]]
 			if len(ins) > 2: conditions.extend((
@@ -276,11 +279,12 @@ def decode_ins(interrupts = True):
 				'QR#0' in ins[2] and (word[1] & 3) != 0,
 				))
 			if len(ins) > 3: conditions.extend((
-				ins[3] in ('#width', '#imm7') and ((word[2] >> 3) & 1) != ins[0][2],
+				ins[3] in ('#width', '#imm7') and (word[2] >> 3) & 1 != ins[0][2],
 				'ER#1' in ins[3] and (word[2] & 1) != 0,
 				'XR#1' in ins[3] and (word[2] & 2) != 0,
 				'QR#1' in ins[3] and (word[2] & 3) != 0,
-				('#Disp6' in ins[3] or '#bit_offset' in ins[3]) and word[2] & ((1 << 2) - 1) != ins[0][2],
+				'#Disp6' in ins[3] and (word[2] >> 2) & 3 != ins[0][2],
+				'bit_offset' in ins[3] and (word[2] >> 3) & 1 != ins[0][2],
 				))
 
 			if not any(conditions): candidates.append(j)
@@ -325,7 +329,8 @@ def decode_ins(interrupts = True):
 		else: ins_str = ins_str.replace('#Cadr', fmt_addr(cadr))
 
 	if '#Radr' in ins_str:
-		radr = addr + 2 + ctypes.c_byte(comb_nibbs(word[2:])).value * 2
+		skip = ctypes.c_byte(comb_nibbs(word[2:])).value * 2
+		radr = addr + 2 + skip
 		if radr > 5 and radr < len(input_file):
 			skip = False
 			if radr in labels:
@@ -337,7 +342,7 @@ def decode_ins(interrupts = True):
 					if addr not in labels[radr][3]: labels[radr][3].append(addr)
 				else: labels[radr] = [label_name, False, 0, [addr]]
 			ins_str = ins_str.replace('#Radr', label_name)
-		else: ins_str = ins_str.replace('#Radr', fmt_addr(radr)[1:])
+		else: ins_str = ins_str.replace('#Radr', format_hex_sign(skip))
 
 	if '#P' in ins_str:
 		used_dsr_prefix = bool(last_dsr_prefix)
@@ -367,13 +372,13 @@ def read_ins() -> tuple:
 	byte = input_file[addr:addr+2][::-1]
 	return conv_nibbs(byte), byte
 
-def disassemble(interrupts: bool = True, addresses: bool = True):
+def disassemble(interrupts: bool = True, addresses: bool = True, unused_funcs: bool = True):
 	global addr, input_file, labels, rst_vct_names, last_dsr_prefix, last_dsr_prefix_str
 	vct_table_lines = {}
 	lines = {}
 
 	tab = '\t'
-	if addresses: format_ins = lambda addr, ins_op, ins_len, ins_str: f'{fmt_addr(addr)}\t{format(ins_op, "0"+str(ins_len*2)+"X")}\t{tab if ins_len < 3 else ""}{ins_str}'
+	if addresses: format_ins = lambda addr, ins_op, ins_len, ins_str: f'{fmt_addr(addr)}\t{format(ins_op, "0"+str(ins_len*2)+"X")}\t{tab if ins_len < 3 else ""}{tab if ins_len < 5 else ""}{ins_str}'
 	else: format_ins = lambda addr = None, ins_op = None, ins_len = None, ins_str = '': f'\t{ins_str}'
 	get_op = lambda addr, length = 2: int.from_bytes(conv_little(input_file[addr:addr+length]), 'big')
 
@@ -422,11 +427,17 @@ def disassemble(interrupts: bool = True, addresses: bool = True):
 	count = 0
 	end_func_lines = ('POP PC', 'RT', 'RTI', 'BAL')
 	for k, v in lines.items():
-		if any(j in v for j in end_func_lines):
+		if any(f'\t{j}' in v for j in end_func_lines):
 			if k+2 in labels:
 				if labels[k+2][1]: lines[k] += '\n'
 			else:
-				labels[k+2] = [f'f_{format(k+2, "05X")}_UNUSED', True]
+				labels[k+2] = [f'f_{format(k+2, "05X")}{"_UNUSED" if unused_funcs else ""}', True]
+				lines[k] += '\n'
+		elif '\tB ' in v:
+			if k+4 in labels:
+				if labels[k+4][1]: lines[k] += '\n'
+			else:
+				labels[k+4] = [f'f_{format(k+4, "05X")}{"_UNUSED" if unused_funcs else ""}', True]
 				lines[k] += '\n'
 		count += 1
 		print(f'\rsearching for unused functions and adding newlines  {format(round(count / len(lines)) * 100, "3")}%', end = '')
@@ -512,12 +523,13 @@ if __name__ == '__main__':
 	parser.add_argument('input', help = 'name of binary file (must have even length)')
 	parser.add_argument('-n', '--ignore-interrupts', dest = 'interrupts', action = 'store_false', help = 'treat the interrupt vector area as normal code')
 	parser.add_argument('-a', '--hide-addresses', dest = 'addresses', action = 'store_false', help = 'hide addresses and operands in disassembly')
+	parser.add_argument('-u', '--no-unused', dest = 'unused_funcs', action = 'store_false', help = 'don\'t add the _UNUSED suffix for unused functions')
 	parser.add_argument('-o', '--output', metavar = 'output', help = 'name of output file. if omitted the disassembly will be outputted to stdout')
 	args = parser.parse_args()
 	if args.output: stdout_file = open(args.output, 'w+')
 	input_file = open(args.input, 'rb').read()
 	if len(input_file) % 2 != 0: parser.error('binary file must be of even length')
-	try: disassemble(args.interrupts, args.addresses)
+	try: disassemble(args.interrupts, args.addresses, args.unused_funcs)
 	except Exception:
 		if args.output: printf('''\
 ; This file was generated by PyU8disas
