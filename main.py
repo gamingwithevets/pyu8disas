@@ -277,14 +277,14 @@ def decode_ins(interrupts = True):
 				'ER#0' in ins[2] and (word[1] & 1) != 0,
 				'XR#0' in ins[2] and (word[1] & 2) != 0,
 				'QR#0' in ins[2] and (word[1] & 3) != 0,
+				'#bit_offset' in ins[2] and int(f'{word[2]:04b}'[0]) != ins[0][2],
 				))
 			if len(ins) > 3: conditions.extend((
-				ins[3] in ('#width', '#imm7') and (word[2] >> 3) & 1 != ins[0][2],
+				ins[3] in ('#width', '#imm7') and int(f'{word[2]:04b}'[0]) != ins[0][2],
 				'ER#1' in ins[3] and (word[2] & 1) != 0,
 				'XR#1' in ins[3] and (word[2] & 2) != 0,
 				'QR#1' in ins[3] and (word[2] & 3) != 0,
-				'#Disp6' in ins[3] and (word[2] >> 2) & 3 != ins[0][2],
-				'bit_offset' in ins[3] and (word[2] >> 3) & 1 != ins[0][2],
+				'#Disp6' in ins[3] and int(f'{word[2]:04b}'[:2], 2) != ins[0][2],
 				))
 
 			if not any(conditions): candidates.append(j)
@@ -456,6 +456,7 @@ def disassemble(interrupts: bool = True, addresses: bool = True, unused_funcs: b
 			while True:
 				i += 2
 				num = addr - i
+				if num < 0: break
 				if num in labels and labels[num][1]:
 					label_name = f'.l_{format(addr - num, "03X")}'
 					data[0] = label_name
