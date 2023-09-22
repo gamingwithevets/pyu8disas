@@ -419,9 +419,12 @@ def disassemble(interrupts: bool = True, addresses: bool = True, unused_funcs: b
 				last_dsr_prefix_str = f'DW {format_hex_w(ins_op)}'
 				addr_prev = addr
 		else:
-			lines[addr] = format_ins(addr_, ins_op, ins_len, ins_str)
-			if last_dsr_prefix: format_ins(addr_prev, get_op(addr_prev), 2, ins_str)
-		addr += ins_len
+			lines[addr_] = format_ins(addr_, ins_op, ins_len, ins_str)
+			if last_dsr_prefix:
+				lines[addr_prev] = format_ins(addr_prev, get_op(addr_prev), 2, ins_str)
+				last_dsr_prefix = ''
+				last_dsr_prefix_str = ''
+		addr += ins_len - (2 if used_dsr_prefix else 0)
 
 	print('\rwaltuh whiet will find you lol :)   \rsearching for unused functions and adding newlines    0%', end = '')
 	count = 0
@@ -491,7 +494,6 @@ def disassemble(interrupts: bool = True, addresses: bool = True, unused_funcs: b
 		if addr in lines: lines[addr] = f'{data[0]}:\n' + lines[addr]
 		count += 1
 		print(f'\radding labels to disassembly  {format(round(count / len(labels) * 100), "3")}%', end = '')
-
 
 	if stdout_file:
 		print('\rnintendo switch!!!                \rwriting to file...', end = '')
