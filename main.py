@@ -443,7 +443,7 @@ def disassemble(interrupts: bool = True, addresses: bool = True, unused_funcs: b
 				labels[k+4] = [f'f_{format(k+4, "05X")}{"_UNUSED" if unused_funcs else ""}', True]
 				lines[k] += '\n'
 		count += 1
-		print(f'\rsearching for unused functions and adding newlines  {format(round(count / len(lines)) * 100, "3")}%', end = '')
+		print(f'\rsearching for unused functions and adding newlines  {format(round(count / len(lines) * 100), "3")}%', end = '')
 
 	addr_list = []
 	for addr, data in labels.items():
