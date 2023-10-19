@@ -14,7 +14,7 @@ options:
   -a, --hide-addresses  hide addresses and operands in disassembly
   -u, --no-unused       don't add the _UNUSED suffix for unused functions
   -o output, --output output
-                        name of output file. if omitted the disassembly will be outputted to stdout
+                        name of output file (default = 'disas.asm')
 ```
 
 # Other U8 disassemblers
