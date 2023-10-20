@@ -11,8 +11,6 @@ if sys.version_info < (3, 6, 0, 'alpha', 4):
 	print('This program requires at least Python 3.6.0a4. (You are running Python ', platform.python_version(), ')', sep = '')
 	sys.exit()
 
-logging.basicConfig(datefmt = '%d/%m/%Y %H:%M:%S', format = '[%(asctime)s] %(levelname)s: %(message)s', level = logging.INFO)
-
 class signed6(ctypes.Structure):
 	_fields_ = [('value', ctypes.c_byte, 6)]
 
@@ -506,7 +504,7 @@ class Disasm:
 					num = address
 					while num > address - (address - first_label_addr) & 0x100:
 						if num in self.labels and self.labels[num][1]:
-							logging.info(f'label obj {addr:05X}: {data}  num = {num:05X}')
+							logging.debug(f'label obj {addr:05X}: {data}  num = {num:05X}')
 							if data[2] != num: lines[address] = lines[address].replace(data[0], f'{self.labels[data[2]][0]}{data[0]}')
 							break
 						num -= 2
@@ -554,7 +552,10 @@ if __name__ == '__main__':
 	parser.add_argument('-u', '--no-unused', dest = 'unused_funcs', action = 'store_false', help = 'don\'t add the _UNUSED suffix for unused functions')
 	#parser.add_argument('-l', '--labels', help = 'path to a labels file')
 	parser.add_argument('-o', '--output', metavar = 'output', default = 'disas.asm', help = 'name of output file (default = \'disas.asm\')')
+	parser.add_argument('-d', '--debug', action = 'store_true', help = 'enable debug logs')
 	args = parser.parse_args()
+
+	logging.basicConfig(datefmt = '%d/%m/%Y %H:%M:%S', format = '[%(asctime)s] %(levelname)s: %(message)s', level = logging.DEBUG if args.debug else logging.INFO)
 
 	disasm = Disasm()
 	disasm.input_file = open(args.input, 'rb').read()

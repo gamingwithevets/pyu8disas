@@ -2,11 +2,6 @@
 
 # Usage
 ```
-usage: main.py [-h] [-n] [-a] [-u] [-o output] input
-
-positional arguments:
-  input                 name of binary file (must have even length)
-
 options:
   -h, --help            show this help message and exit
   -n, --ignore-interrupts
@@ -15,6 +10,7 @@ options:
   -u, --no-unused       don't add the _UNUSED suffix for unused functions
   -o output, --output output
                         name of output file (default = 'disas.asm')
+  -d, --debug           enable debug logs
 ```
 
 # Other U8 disassemblers
