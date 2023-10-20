@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import ctypes
 import logging
@@ -24,7 +25,7 @@ class Disasm:
 		self.input_file = None
 		self.output_file = None
 		self.addr = 0
-		self.labels = {}
+		self.labels = {None: ['', True]}
 		self.last_dsr_prefix = ''
 		self.last_dsr_prefix_str = ''
 		
@@ -214,7 +215,7 @@ class Disasm:
 			)
 
 		self.dsr_prefixes = (
-			((0xe, 3, '#pseg_self.addr'), '#pseg_self.addr'),
+			((0xe, 3, '#pseg_addr'), '#pseg_addr'),
 			((9, 0, '#d', 0xf), 'R#d'),
 			((0xf, 0xe, 9, 0xf), 'DSR'),
 			)
@@ -271,7 +272,7 @@ class Disasm:
 			if score >= sum(isinstance(_, int) for _ in prefix[0]):
 				prefix_str = prefix[1] + ':'
 				break
-		prefix_str = prefix_str.replace('#pseg_self.addr', str(self.comb_nibbs(prefix_word[2:])))
+		prefix_str = prefix_str.replace('#pseg_addr', str(self.comb_nibbs(prefix_word[2:])))
 		prefix_str = prefix_str.replace('#d', str(prefix_word[2]))
 
 		if prefix_str: return prefix_str, 2, True, False
@@ -323,23 +324,23 @@ class Disasm:
 			if len(ins) >= 4: ins_str += ', ' + ins[3]
 
 		if '#Dadr' in ins_str:
-			self.addr_temp = self.addr; self.addr += 2
+			addr_temp = self.addr; self.addr += 2
 			_, raw_bytes2 = self.read_ins()
-			self.addr = self.addr_temp
+			self.addr = addr_temp
 			ins_len += 2
 			ins_str = ins_str.replace('#Dadr', self.format_hex_w(int.from_bytes(raw_bytes2, "big")))
 
 		if '#Disp16' in ins_str:
-			self.addr_temp = self.addr; self.addr += 2
+			addr_temp = self.addr; self.addr += 2
 			_, raw_bytes2 = self.read_ins()
-			self.addr = self.addr_temp
+			self.addr = addr_temp
 			ins_len += 2
 			ins_str = ins_str.replace('#Disp16', self.format_hex_sign(ctypes.c_short(int.from_bytes(raw_bytes2, "big")).value, 4))
 
 		if '#Cadr' in ins_str:
-			self.addr_temp = self.addr; self.addr += 2
+			addr_temp = self.addr; self.addr += 2
 			_, raw_bytes2 = self.read_ins()
-			self.addr = self.addr_temp
+			self.addr = addr_temp
 			ins_len += 2
 			cadr = word[1] * 0x10000 + int.from_bytes(raw_bytes2, 'big')
 			if cadr % 2 != 0: cadr -= 1
@@ -363,10 +364,10 @@ class Disasm:
 					label_name = self.labels[radr][0]
 					skip = True
 				if not skip:
-					label_name = f'.jump_{format(radr, "04X")}'
+					label_name = f'.j_{format(radr, "04X")}'
 					if radr in self.labels:
 						if self.addr not in self.labels[radr][3]: self.labels[radr][3].append(self.addr)
-					else: self.labels[radr] = [label_name, False, 0, [self.addr]]
+					else: self.labels[radr] = [label_name, False, None, [self.addr]]
 				ins_str = ins_str.replace('#Radr', label_name)
 			else: ins_str = ins_str.replace('#Radr', self.format_hex_sign(skip))
 
@@ -429,25 +430,27 @@ class Disasm:
 				vct_table_lines[self.addr] = format_ins(self.addr, ins_op, 2, f'DW {self.int_entry_name_template.format(i)}')
 				self.addr += 2
 
-		for k, v in self.rst_vct_names.items(): self.labels[int.from_bytes(self.conv_little(self.input_file[k:k+2]), 'big')] = [v, True]
+		for k, v in self.rst_vct_names.items():
+			if k > 0: self.labels[int.from_bytes(self.conv_little(self.input_file[k:k+2]), 'big')] = [v, True]
 
+		addr_prev = None
 		while self.addr < len(self.input_file):
 			print_progress_disas()
 			ins_str, ins_len, dsr_prefix, used_dsr_prefix = self.decode_ins(args.interrupts)
-			self.addr_ = self.addr_prev if used_dsr_prefix else self.addr
+			self.addr_ = addr_prev if used_dsr_prefix else self.addr
 			ins_op = self.get_op(self.addr_, ins_len)
 			if dsr_prefix:
 				if self.last_dsr_prefix:
 					lines[self.addr] = format_ins(self.addr, self.get_op(self.addr), 2, f'DW {self.format_hex_w(ins_op)}')
-					lines[self.addr_prev] = format_ins(self.addr_prev, self.get_op(self.addr_prev), 2, self.last_dsr_prefix_str)
+					lines[addr_prev] = format_ins(addr_prev, self.get_op(addr_prev), 2, self.last_dsr_prefix_str)
 				else:
 					self.last_dsr_prefix = ins_str
 					self.last_dsr_prefix_str = f'DW {self.format_hex_w(ins_op)}'
-					self.addr_prev = self.addr
+					addr_prev = self.addr
 			else:
 				lines[self.addr_] = format_ins(self.addr_, ins_op, ins_len, ins_str)
 				if self.last_dsr_prefix:
-					lines[self.addr_prev] = format_ins(self.addr_prev, self.get_op(self.addr_prev), 2, ins_str)
+					lines[addr_prev] = format_ins(addr_prev, self.get_op(addr_prev), 2, ins_str)
 					self.last_dsr_prefix = ''
 					self.last_dsr_prefix_str = ''
 			self.addr += ins_len - (2 if used_dsr_prefix else 0)
@@ -455,9 +458,8 @@ class Disasm:
 		sys.stdout.write('\r')
 		logging.info('Searching for unused functions')
 		count = 0
-		end_func_lines = ('POP PC', 'RT', 'RTI', 'BAL')
 		for k, v in lines.items():
-			if any(f'\t{j}' in v for j in end_func_lines):
+			if any(f'\t{j}' in v for j in ('POP PC', 'RT', 'RTI', 'BAL')):
 				if k+2 in self.labels:
 					if self.labels[k+2][1]: lines[k] += '\n'
 				else:
@@ -472,24 +474,18 @@ class Disasm:
 			count += 1
 			print_progress(count, len(lines))
 
-		self.addr_list = []
-		for self.addr, data in self.labels.items():
-			if data[1]: self.addr_list.append(self.addr)
-		first_label_addr = min(self.addr_list)
+		first_label_addr = list(self.labels.keys())[1]
 
 		sys.stdout.write('\r')
-		logging.info('Linking labels')
+		logging.info('Generating and linking local labels')
 		count = 0
-		for self.addr, data in self.labels.items():
-			if not data[1] and self.addr > first_label_addr:
+		for addr, data in self.labels.items():
+			if not data[1] and self.addr >= first_label_addr:
 				old_label = data[0]
-				i = 0
-				while True:
-					i += 2
-					num = self.addr - i
-					if num < 0: break
+				num = addr - 2
+				while num >= first_label_addr:
 					if num in self.labels and self.labels[num][1]:
-						label_name = f'.l_{format(self.addr - num, "03X")}'
+						label_name = f'.l_{format(addr - num, "03X")}'
 						data[0] = label_name
 						data[2] = num
 						for j in range(-0xfe, 0xff, 2):
@@ -497,31 +493,31 @@ class Disasm:
 								num_ = self.addr + j
 								if old_label in lines[num_]: lines[num_] = lines[num_].replace(old_label, label_name)
 						break
+					num -= 2
 			count += 1
 			print_progress(count, len(self.labels))
 
 		sys.stdout.write('\r')
 		logging.info('Processing labels')
 		count = 0
-		for self.addr, data in self.labels.items():
-			if not data[1] and self.addr > first_label_addr:
-				for self.address in data[3]:
-					j = -2
-					while True:
-						j += 2
-						num = self.address - j
+		for addr, data in self.labels.items():
+			if not data[1] and self.addr >= first_label_addr:
+				for address in data[3]:
+					num = address
+					while num > address - (address - first_label_addr) & 0x100:
 						if num in self.labels and self.labels[num][1]:
-							if data[2] != num: lines[self.address] = lines[self.address].replace(data[0], f'{self.labels[data[2]][0]}{data[0]}')
+							logging.info(f'label obj {addr:05X}: {data}  num = {num:05X}')
+							if data[2] != num: lines[address] = lines[address].replace(data[0], f'{self.labels[data[2]][0]}{data[0]}')
 							break
-						if j >= 0x100: break
+						num -= 2
 			count += 1
 			print_progress(count, len(self.labels))
 
 		sys.stdout.write('\r')
 		logging.info('Adding labels to disassembly')
 		count = 0
-		for self.addr, data in self.labels.items():
-			if self.addr in lines: lines[self.addr] = f'{data[0]}:\n' + lines[self.addr]
+		for addr, data in self.labels.items():
+			if addr in lines: lines[addr] = f'{data[0]}:\n' + lines[addr]
 			count += 1
 			print_progress(count, len(self.labels))
 
@@ -580,7 +576,7 @@ if __name__ == '__main__':
 ; ''' + '\n; '.join(tb.split('\n')))
 	except KeyboardInterrupt:
 		sys.stdout.write('\r')
-		logging.error('\nKeyboardInterrupt detected, exiting.')
+		logging.error('KeyboardInterrupt detected, exiting.')
 		disasm.printf('''\
 ; This file was generated by PyU8disas
 ; GitHub repository: https://github.com/gamingwithevets/pyu8disas
