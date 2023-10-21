@@ -524,7 +524,7 @@ if __name__ == '__main__':
 	parser.add_argument('-a', '--hide-addresses', dest = 'addresses', action = 'store_false', help = 'hide addresses and operands in disassembly')
 	parser.add_argument('-u', '--no-unused', dest = 'unused_funcs', action = 'store_false', help = 'don\'t add the _UNUSED suffix for unused functions')
 	parser.add_argument('-t', '--no-auto-labels', dest = 'auto_labels', action = 'store_false', help = 'don\'t generate local label names')
-	parser.add_argument('-l', '--labels', type = open, help = 'path to a labels file')
+	parser.add_argument('-l', '--labels', metavar = 'labels', type = open, help = 'path to a labels file')
 	parser.add_argument('-o', '--output', metavar = 'output', default = 'disas.asm', help = 'name of output file (default = \'disas.asm\')')
 	parser.add_argument('-d', '--debug', action = 'store_true', help = 'enable debug logs')
 	args = parser.parse_args()
