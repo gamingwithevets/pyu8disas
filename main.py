@@ -524,7 +524,7 @@ if __name__ == '__main__':
 	parser.add_argument('-a', '--hide-addresses', dest = 'addresses', action = 'store_false', help = 'hide addresses and operands in disassembly')
 	parser.add_argument('-u', '--no-unused', dest = 'unused_funcs', action = 'store_false', help = 'don\'t add the _UNUSED suffix for unused functions')
 	parser.add_argument('-t', '--no-auto-labels', dest = 'auto_labels', action = 'store_false', help = 'don\'t generate local label names')
-	#parser.add_argument('-l', '--labels', help = 'path to a labels file')
+	parser.add_argument('-l', '--labels', type = open, help = 'path to a labels file')
 	parser.add_argument('-o', '--output', metavar = 'output', default = 'disas.asm', help = 'name of output file (default = \'disas.asm\')')
 	parser.add_argument('-d', '--debug', action = 'store_true', help = 'enable debug logs')
 	args = parser.parse_args()
@@ -534,6 +534,28 @@ if __name__ == '__main__':
 	disasm = Disasm()
 	disasm.input_file = open(args.input, 'rb').read()
 	disasm.output_file = open(args.output, 'w')
+
+	if args.labels is not None:
+		logging.info('Adding label names from provided labels file')
+		labels = args.labels.readlines()
+		args.labels.close()
+		label_data = [re.split(r'\s+', label.strip().split('#')[0].strip()) for label in labels]
+		label_data = list(filter((['']).__ne__, label_data))
+
+		curr_func = None
+		for data in label_data:
+			if len(data) > 1:
+				if data[0].startswith('f_'):
+					addr = int(data[0][2:], 16)
+					disasm.labels[addr] = [data[1], True]
+					curr_func = addr
+				elif data[0].startswith('.l_'):
+					addr = curr_func + int(data[0][3:], 16)
+					disasm.labels[addr] = [data[1], False, 0, []]
+				else:
+					addr = int(data[0], 16)
+					disasm.labels[addr] = [data[1], True]
+					curr_func = addr
 
 	if len(disasm.input_file) % 2 != 0: parser.error('binary file must be of even length')
 	try: disasm.disassemble(args)
