@@ -23,7 +23,7 @@ class Disasm:
 		self.input_file = None
 		self.output_file = None
 		self.addr = 0
-		self.labels = {None: ['', True]}
+		self.labels = {}
 		self.last_dsr_prefix = ''
 		self.last_dsr_prefix_str = ''
 		
@@ -218,9 +218,7 @@ class Disasm:
 			((0xf, 0xe, 9, 0xf), 'DSR'),
 			)
 
-		self.rst_vct_names = {0: 'spinit', 2: 'start', 4: 'brk', 6: 'nmice_entry', 8: 'nmi_entry'}
-		self.int_entry_name_template = 'Int{}_entry'
-		self.int_entry_name_template = 'sw{}_entry'
+		self.rst_vct_names = {0: 'spinit', 2: 'start', 4: 'brk'}
 
 	@staticmethod
 	@cache
@@ -259,7 +257,7 @@ class Disasm:
 		low = addr & 0xff
 		return f'{csr:X}:{high:02X}{low:02X}H'
 
-	def decode_ins(self, interrupts = True):
+	def decode_ins(self):
 		prefix_word, _ = self.read_ins()
 		prefix_str = ''
 		for prefix in self.dsr_prefixes:
@@ -326,14 +324,14 @@ class Disasm:
 			_, raw_bytes2 = self.read_ins()
 			self.addr = addr_temp
 			ins_len += 2
-			ins_str = ins_str.replace('#Dadr', self.format_hex_w(int.from_bytes(raw_bytes2, "big")))
+			ins_str = ins_str.replace('#Dadr', self.format_hex_w(int.from_bytes(raw_bytes2, 'big')))
 
 		if '#Disp16' in ins_str:
 			addr_temp = self.addr; self.addr += 2
 			_, raw_bytes2 = self.read_ins()
 			self.addr = addr_temp
 			ins_len += 2
-			ins_str = ins_str.replace('#Disp16', self.format_hex_sign(ctypes.c_short(int.from_bytes(raw_bytes2, "big")).value, 4))
+			ins_str = ins_str.replace('#Disp16', self.format_hex_sign(ctypes.c_short(int.from_bytes(raw_bytes2, 'big')).value, 4))
 
 		if '#Cadr' in ins_str:
 			addr_temp = self.addr; self.addr += 2
@@ -342,7 +340,7 @@ class Disasm:
 			ins_len += 2
 			cadr = word[1] * 0x10000 + int.from_bytes(raw_bytes2, 'big')
 			if cadr % 2 != 0: cadr -= 1
-			if cadr > (0xff if interrupts else 5) and cadr < len(self.input_file):
+			if cadr > 5 and cadr < len(self.input_file):
 				skip = False
 				if cadr in self.labels:
 					label_name = self.labels[cadr][0]
@@ -362,10 +360,9 @@ class Disasm:
 					label_name = self.labels[radr][0]
 					skip = True
 				if not skip:
-					label_name = f'.j_{format(radr, "04X")}'
-					if radr in self.labels:
-						if self.addr not in self.labels[radr][3]: self.labels[radr][3].append(self.addr)
-					else: self.labels[radr] = [label_name, False, None, [self.addr]]
+					label_name = f'.j_{radr:05X}'
+					if radr in self.labels: self.labels[radr][3].add(self.addr)
+					else: self.labels[radr] = [label_name, False, 0, {self.addr}]
 				ins_str = ins_str.replace('#Radr', label_name)
 			else: ins_str = ins_str.replace('#Radr', self.format_hex_sign(skip))
 
@@ -407,26 +404,13 @@ class Disasm:
 
 		logging.info('Disassembling')
 		print_progress_disas = lambda: print(f'\rAddress: {self.fmt_addr(self.addr)}  Progress: {format(round(self.addr / len(self.input_file) * 100), "3")}%', end = '')
-		print_progress = lambda x, y: print(f'\rProgress: {format(x // y * 100, "3")}%', end = '')
+		print_progress = lambda x, y: print(f'\rProgress: {format(round(x / y * 100), "3")}%', end = '')
 
-		while self.addr < (10 if args.interrupts else 6):
+		while self.addr < 6:
 			print_progress_disas()
 			ins_op = self.get_op(self.addr)
 			vct_table_lines[self.addr] = format_ins(self.addr, ins_op, 2, f'DW {self.rst_vct_names[self.addr]}')
 			self.addr += 2
-
-		if args.interrupts:
-			for i in range(1, 60):
-				print_progress_disas()
-				ins_op = self.get_op(self.addr)
-				vct_table_lines[self.addr] = format_ins(self.addr, ins_op, 2, f'DW {self.int_entry_name_template.format(i)}')
-				self.addr += 2
-
-			for i in range(64):	
-				print_progress_disas()
-				ins_op = self.get_op(self.addr)
-				vct_table_lines[self.addr] = format_ins(self.addr, ins_op, 2, f'DW {self.int_entry_name_template.format(i)}')
-				self.addr += 2
 
 		for k, v in self.rst_vct_names.items():
 			if k > 0: self.labels[int.from_bytes(self.conv_little(self.input_file[k:k+2]), 'big')] = [v, True]
@@ -434,7 +418,7 @@ class Disasm:
 		addr_prev = None
 		while self.addr < len(self.input_file):
 			print_progress_disas()
-			ins_str, ins_len, dsr_prefix, used_dsr_prefix = self.decode_ins(args.interrupts)
+			ins_str, ins_len, dsr_prefix, used_dsr_prefix = self.decode_ins()
 			self.addr_ = addr_prev if used_dsr_prefix else self.addr
 			ins_op = self.get_op(self.addr_, ins_len)
 			if dsr_prefix:
@@ -457,7 +441,7 @@ class Disasm:
 		logging.info('Searching for unused functions')
 		count = 0
 		for k, v in lines.items():
-			if any(f'\t{j}' in v for j in ('POP PC', 'RT', 'RTI', 'BAL')):
+			if any(f'\t{j}' in v for j in ('POP PC', 'RT', 'RTI', 'BAL', 'B ER')):
 				if k+2 in self.labels:
 					if self.labels[k+2][1]: lines[k] += '\n'
 				else:
@@ -472,47 +456,47 @@ class Disasm:
 			count += 1
 			print_progress(count, len(lines))
 
-		first_label_addr = list(self.labels.keys())[1]
+		if args.auto_labels:
+			first_label_addr = sorted(list(self.labels.keys()))[0]
 
-		sys.stdout.write('\r')
-		logging.info('Generating and linking local labels')
-		count = 0
-		for addr, data in self.labels.items():
-			if not data[1] and self.addr >= first_label_addr:
-				old_label = data[0]
-				num = addr - 2
-				while num >= first_label_addr:
-					if num in self.labels and self.labels[num][1]:
-						label_name = f'.l_{format(addr - num, "03X")}'
-						data[0] = label_name
-						data[2] = num
-						for j in range(-0xfe, 0xff, 2):
-							if self.addr + j in lines:
-								num_ = self.addr + j
-								if old_label in lines[num_]: lines[num_] = lines[num_].replace(old_label, label_name)
-						break
-					num -= 2
-			count += 1
-			print_progress(count, len(self.labels))
-
-		sys.stdout.write('\r')
-		logging.info('Processing labels')
-		count = 0
-		for addr, data in self.labels.items():
-			if not data[1] and self.addr >= first_label_addr:
-				for address in data[3]:
-					num = address
-					while num > address - (address - first_label_addr) & 0x100:
+			sys.stdout.write('\r')
+			logging.info('Generating and linking local labels')
+			count = 0
+			for addr, data in self.labels.items():
+				if not data[1] and self.addr > first_label_addr:
+					old_label = data[0]
+					num = addr - 2
+					while num > first_label_addr:
 						if num in self.labels and self.labels[num][1]:
-							logging.debug(f'label obj {addr:05X}: {data}  num = {num:05X}')
-							if data[2] != num: lines[address] = lines[address].replace(data[0], f'{self.labels[data[2]][0]}{data[0]}')
+							label_name = f'.l_{format(addr - num, "03X")}'
+							data[0] = label_name
+							data[2] = num
 							break
 						num -= 2
-			count += 1
-			print_progress(count, len(self.labels))
+				count += 1
+				print_progress(count, len(self.labels))
+
+			sys.stdout.write('\r')
+			logging.info('Adding labels [stage 1 of 2]')
+			count = 0
+			curr_func = None
+			for addr in lines:
+				if addr in self.labels and self.labels[addr][1]: curr_func = addr
+				line = lines[addr]
+
+				match = re.search(r'\.j_', line)
+				if match is not None:
+					jname = line[match.start():].replace('\n', '')
+					jaddr = int(jname[3:], 16)
+					jaddr_label = self.labels[jaddr]
+					if curr_func is not None: line = line.replace(jname, f'{self.labels[jaddr_label[2]][0] if jaddr_label[2] != curr_func else ""}{jaddr_label[0]}')
+
+				lines[addr] = line
+				count += 1
+				print_progress(count, len(lines))
 
 		sys.stdout.write('\r')
-		logging.info('Adding labels to disassembly')
+		logging.info('Adding labels [stage 2 of 2]')
 		count = 0
 		for addr, data in self.labels.items():
 			if addr in lines: lines[addr] = f'{data[0]}:\n' + lines[addr]
@@ -527,18 +511,8 @@ class Disasm:
 ''')
 		self.printf('; Reset vectors')
 		for k, v in self.rst_vct_names.items():
-			if k == 6:
-				if not args.interrupts: break
-				else: self.printf('\n; Hardware interrupt vectors')
+			if k == 6: break
 			self.printf(f'{v} = {self.format_hex_w(self.get_op(k))}')
-		if args.interrupts:
-			for i in range(1, 60):
-				ptr_val = 8 + i*2
-				self.printf(f'{self.int_entry_name_template.format(i)} = {self.format_hex_w(self.get_op(ptr_val))}')
-			self.printf('\n; Software interrupt vectors')
-			for i in range(64):
-				ptr_val = 0x80 + i*2
-				self.printf(f'{self.int_entry_name_template.format(i)} = {self.format_hex_w(self.get_op(ptr_val))}')
 
 		self.printf('\n' + '\n'.join(vct_table_lines.values()) + '\n')
 		self.printf('\n'.join(lines.values()))
@@ -547,9 +521,9 @@ class Disasm:
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description = 'PyU8disas - nX-U8 disassembler. Outputs assembly format.', epilog = '(c) 2023 GamingWithEvets Inc.\nLicensed under the MIT license', formatter_class=argparse.RawTextHelpFormatter, allow_abbrev = False)
 	parser.add_argument('input', help = 'name of binary file (must have even length)')
-	parser.add_argument('-n', '--ignore-interrupts', dest = 'interrupts', action = 'store_false', help = 'treat the interrupt vector area as normal code')
 	parser.add_argument('-a', '--hide-addresses', dest = 'addresses', action = 'store_false', help = 'hide addresses and operands in disassembly')
 	parser.add_argument('-u', '--no-unused', dest = 'unused_funcs', action = 'store_false', help = 'don\'t add the _UNUSED suffix for unused functions')
+	parser.add_argument('-t', '--no-auto-labels', dest = 'auto_labels', action = 'store_false', help = 'don\'t generate local label names')
 	#parser.add_argument('-l', '--labels', help = 'path to a labels file')
 	parser.add_argument('-o', '--output', metavar = 'output', default = 'disas.asm', help = 'name of output file (default = \'disas.asm\')')
 	parser.add_argument('-d', '--debug', action = 'store_true', help = 'enable debug logs')
