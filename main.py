@@ -489,6 +489,10 @@ class Disasm:
 					jname = line[match.start():].replace('\n', '')
 					jaddr = int(jname[3:], 16)
 					jaddr_label = self.labels[jaddr]
+					if jaddr_label[2] == 0:
+						sys.stdout.write('\r')
+						logging.warning(f'Local label {jname} is not assigned to any function')
+						continue
 					if curr_func is not None: line = line.replace(jname, f'{self.labels[jaddr_label[2]][0] if jaddr_label[2] != curr_func else ""}{jaddr_label[0]}')
 
 				lines[addr] = line
