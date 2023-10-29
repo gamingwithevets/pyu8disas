@@ -463,7 +463,7 @@ class Disasm:
 			logging.info('Generating and linking local labels')
 			count = 0
 			for addr, data in self.labels.items():
-				if not data[1] and self.addr > first_label_addr:
+				if not data[1] and self.addr > first_label_addr and data[0].startswith('.j_'):
 					old_label = data[0]
 					num = addr - 2
 					while num > first_label_addr:
@@ -545,17 +545,19 @@ if __name__ == '__main__':
 		curr_func = None
 		for data in label_data:
 			if len(data) > 1:
-				if data[0].startswith('f_'):
-					addr = int(data[0][2:], 16)
-					disasm.labels[addr] = [data[1], True]
-					curr_func = addr
-				elif data[0].startswith('.l_'):
-					addr = curr_func + int(data[0][3:], 16)
-					disasm.labels[addr] = [data[1], False, 0, []]
-				else:
-					addr = int(data[0], 16)
-					disasm.labels[addr] = [data[1], True]
-					curr_func = addr
+				try:
+					if data[0].startswith('f_'):
+						addr = int(data[0][2:], 16)
+						disasm.labels[addr] = [data[1], True]
+						curr_func = addr
+					elif data[0].startswith('.l_'):
+						addr = curr_func + int(data[0][3:], 16)
+						disasm.labels[addr] = [data[1], False, 0, []]
+					else:
+						addr = int(data[0], 16)
+						disasm.labels[addr] = [data[1], True]
+						curr_func = addr
+				except Exception: pass
 
 	if len(disasm.input_file) % 2 != 0: parser.error('binary file must be of even length')
 	try: disasm.disassemble(args)
