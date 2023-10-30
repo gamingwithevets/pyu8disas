@@ -11,6 +11,13 @@ if sys.version_info < (3, 6, 0, 'alpha', 4):
 	print('This program requires at least Python 3.6.0a4. (You are running Python ', platform.python_version(), ')', sep = '')
 	sys.exit()
 
+class signed7(ctypes.Structure):
+	_fields_ = [('value', ctypes.c_byte, 7)]
+
+	def __init__(self, value: int = 0): self.value = value & 0x7f
+	def __repr__(self): return f'signed7({self.value})'
+	def __str__(self): return str(self.value)
+
 class signed6(ctypes.Structure):
 	_fields_ = [('value', ctypes.c_byte, 6)]
 
@@ -68,6 +75,7 @@ class Disasm:
 			((0xf, '#0', 3, 0xf), 'DEC', '#P[EA]'),
 			((0xe, 0xb, 0xf, 7), 'DI'),
 			((0xf, '#0', '#1', 9), 'DIV', 'ER#0', 'R#1'),
+			((0xe, 0xd, 0, 8), 'EI'),
 			((0x8, '#1+1', '#1', 0xf), 'EXTBW', 'ER#0'),
 			((0xf, 0xe, 2, 0xf), 'INC', '#P[EA]'),
 			((9, '#0', 3, 2), 'L', 'ER#0', '#P[EA]'),
@@ -382,7 +390,7 @@ class Disasm:
 		ins_str = ins_str.replace('#imm8', f'#{self.format_hex(self.comb_nibbs(word[2:]))}')
 		ins_str = ins_str.replace('#unsigned8', f'#{self.format_hex(self.comb_nibbs(word[2:]))}')
 		ins_str = ins_str.replace('#signed8', self.format_hex_sign(ctypes.c_byte(self.comb_nibbs(word[2:])).value, 2))
-		ins_str = ins_str.replace('#imm7', f'#{self.format_hex(self.comb_nibbs((word[2] & 7, word[3])))}')
+		ins_str = ins_str.replace('#imm7', f'#{self.format_hex(signed7(self.comb_nibbs((word[2] & 7, word[3]))).value)}')
 		ins_str = ins_str.replace('#width', str(word[2] & 7))
 		ins_str = ins_str.replace('#Disp6', self.format_hex_sign(signed6(self.comb_nibbs((word[2] & 3, word[3]))).value))
 		ins_str = ins_str.replace('#snum', str(self.comb_nibbs((word[2] & 3, word[3]))))
