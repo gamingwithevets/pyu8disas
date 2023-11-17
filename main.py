@@ -264,7 +264,7 @@ class Disasm:
 		csr = (addr & 0xf0000) >> 16
 		high = (addr & 0xff00) >> 8
 		low = addr & 0xff
-		return f'{csr:2}:{high:02X}{low:02X}H'
+		return f'{csr:02}:{high:02X}{low:02X}H'
 
 	def decode_ins(self):
 		prefix_word, _ = self.read_ins()
@@ -349,29 +349,31 @@ class Disasm:
 			ins_len += 2
 			cadr = word[1] * 0x10000 + int.from_bytes(raw_bytes2, 'big')
 			if cadr % 2 != 0: cadr -= 1
-			if cadr > 5 and cadr < len(self.start + self.input_file):
+			if cadr > 5 and self.start <= cadr < self.start + len(self.input_file):
+				cadr_ = cadr - self.start
 				skip = False
-				if cadr in self.labels:
-					label_name = self.labels[cadr][0]
+				if cadr_ in self.labels:
+					label_name = self.labels[cadr_][0]
 					skip = True
 				if not skip:
 					label_name = f'f_{format(cadr, "05X")}'
-					self.labels[cadr] = [label_name, True]
+					self.labels[cadr_] = [label_name, True]
 				ins_str = ins_str.replace('#Cadr', label_name)
 			else: ins_str = ins_str.replace('#Cadr', self.fmt_addr(cadr))
 
 		if '#Radr' in ins_str:
 			skip = ctypes.c_byte(self.comb_nibbs(word[2:])).value * 2
 			radr = self.start + self.addr + 2 + skip
-			if radr > 5 and radr < len(self.start + self.input_file):
+			if radr > 5 and self.start <= radr < self.start + len(self.input_file):
+				radr_ = radr - self.start
 				skip = False
 				if radr in self.labels:
-					label_name = self.labels[radr][0]
+					label_name = self.labels[radr_][0]
 					skip = True
 				if not skip:
 					label_name = f'.j_{radr:05X}'
-					if radr in self.labels: self.labels[radr][3].add(self.addr)
-					else: self.labels[radr] = [label_name, False, 0, {self.addr}]
+					if radr in self.labels: self.labels[radr_][3].add(self.start + self.addr)
+					else: self.labels[radr_] = [label_name, False, 0, {self.start + self.addr}]
 				ins_str = ins_str.replace('#Radr', label_name)
 			else: ins_str = ins_str.replace('#Radr', self.format_hex_sign(skip))
 
@@ -456,13 +458,13 @@ class Disasm:
 				if k+2 in self.labels:
 					if self.labels[k+2][1]: lines[k] += '\n'
 				else:
-					self.labels[k+2] = [f'f_{format(k+2, "05X")}{"_UNUSED" if args.unused_funcs else ""}', True]
+					self.labels[k+2] = [f'f_{format(self.start + k+2, "05X")}{"_UNUSED" if args.unused_funcs else ""}', True]
 					lines[k] += '\n'
 			elif '\tB ' in v:
 				if k+4 in self.labels:
 					if self.labels[k+4][1]: lines[k] += '\n'
 				else:
-					self.labels[k+4] = [f'f_{format(k+4, "05X")}{"_UNUSED" if args.unused_funcs else ""}', True]
+					self.labels[k+4] = [f'f_{format(self.start + k+4, "05X")}{"_UNUSED" if args.unused_funcs else ""}', True]
 					lines[k] += '\n'
 			count += 1
 			print_progress(count, len(lines))
@@ -498,7 +500,7 @@ class Disasm:
 				match = re.search(r'\.j_', line)
 				if match is not None:
 					jname = line[match.start():].replace('\n', '')
-					jaddr = int(jname[3:], 16)
+					jaddr = int(jname[3:], 16) - self.start
 					jaddr_label = self.labels[jaddr]
 					if jaddr_label[2] == 0:
 						sys.stdout.write('\r')
