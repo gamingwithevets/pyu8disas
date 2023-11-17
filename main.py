@@ -349,7 +349,7 @@ class Disasm:
 			ins_len += 2
 			cadr = word[1] * 0x10000 + int.from_bytes(raw_bytes2, 'big')
 			if cadr % 2 != 0: cadr -= 1
-			if cadr > 5 and cadr < len(self.input_file):
+			if cadr > 5 and cadr < len(self.start + self.input_file):
 				skip = False
 				if cadr in self.labels:
 					label_name = self.labels[cadr][0]
@@ -363,7 +363,7 @@ class Disasm:
 		if '#Radr' in ins_str:
 			skip = ctypes.c_byte(self.comb_nibbs(word[2:])).value * 2
 			radr = self.start + self.addr + 2 + skip
-			if radr > 5 and radr < len(self.input_file):
+			if radr > 5 and radr < len(self.start + self.input_file):
 				skip = False
 				if radr in self.labels:
 					label_name = self.labels[radr][0]
