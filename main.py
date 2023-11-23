@@ -264,7 +264,7 @@ class Disasm:
 		csr = (addr & 0xf0000) >> 16
 		high = (addr & 0xff00) >> 8
 		low = addr & 0xff
-		return f'{csr:02}:{high:02X}{low:02X}H'
+		return f'{csr:X}:{high:02X}{low:02X}H'
 
 	def decode_ins(self):
 		prefix_word, _ = self.read_ins()
