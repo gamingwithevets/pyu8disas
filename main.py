@@ -340,7 +340,7 @@ class Disasm:
 			_, raw_bytes2 = self.read_ins()
 			self.addr = addr_temp
 			ins_len += 2
-			ins_str = ins_str.replace('#Disp16', self.format_hex_sign(ctypes.c_short(int.from_bytes(raw_bytes2, 'big')).value, 4))
+			ins_str = ins_str.replace('#Disp16', self.format_hex_sign(ctypes.c_short(int.from_bytes(raw_bytes2, 'big')).value))
 
 		if '#Cadr' in ins_str:
 			addr_temp = self.addr; self.addr += 2
