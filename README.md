@@ -20,8 +20,11 @@ options:
   -a, --hide-addresses  hide addresses and operands in disassembly
   -u, --no-unused       don't add the _UNUSED suffix for unused functions
   -t, --no-auto-labels  don't generate local label names
-  -l LABELS, --labels LABELS
-                        path to a labels file
+  -l [labels ...], --labels [labels ...]
+                        path to label files
+  -s start, --start start
+                        start address (must be even and hexadecimal)
+  -n, --no-vct          disable the vector table
   -o output, --output output
                         name of output file (default = 'disas.asm')
   -d, --debug           enable debug logs

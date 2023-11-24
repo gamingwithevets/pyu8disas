@@ -32,6 +32,7 @@ class Disasm:
 		self.addr = 0
 		self.start = 0
 		self.labels = {}
+		self.data_labels = {}
 		self.last_dsr_prefix = ''
 		self.last_dsr_prefix_str = ''
 		
@@ -261,10 +262,7 @@ class Disasm:
 	@staticmethod
 	@cache
 	def fmt_addr(addr: int) -> str:
-		csr = (addr & 0xf0000) >> 16
-		high = (addr & 0xff00) >> 8
-		low = addr & 0xff
-		return f'{csr:X}:{high:02X}{low:02X}H'
+		return f'{addr >> 16:X}:{addr & 0xffff:04X}H'
 
 	def decode_ins(self):
 		prefix_word, _ = self.read_ins()
@@ -277,7 +275,7 @@ class Disasm:
 			if score >= sum(isinstance(_, int) for _ in prefix[0]):
 				prefix_str = prefix[1] + ':'
 				break
-		prefix_str = prefix_str.replace('#pseg_addr', str(self.comb_nibbs(prefix_word[2:])))
+		prefix_str = prefix_str.replace('#pseg_addr', format(self.comb_nibbs(prefix_word[2:]), '02X'))
 		prefix_str = prefix_str.replace('#d', str(prefix_word[2]))
 
 		if prefix_str: return prefix_str, 2, True, False
@@ -328,12 +326,14 @@ class Disasm:
 			if len(ins) >= 3: ins_str += ' ' + ins[2]
 			if len(ins) >= 4: ins_str += ', ' + ins[3]
 
+		dadr = None
 		if '#Dadr' in ins_str:
 			addr_temp = self.addr; self.addr += 2
 			_, raw_bytes2 = self.read_ins()
 			self.addr = addr_temp
 			ins_len += 2
-			ins_str = ins_str.replace('#Dadr', self.format_hex_w(int.from_bytes(raw_bytes2, 'big')))
+			dadr = int.from_bytes(raw_bytes2, 'big')
+			ins_str = ins_str.replace('#Dadr', self.format_hex_w(dadr))
 
 		if '#Disp16' in ins_str:
 			addr_temp = self.addr; self.addr += 2
@@ -377,15 +377,25 @@ class Disasm:
 				ins_str = ins_str.replace('#Radr', label_name)
 			else: ins_str = ins_str.replace('#Radr', self.format_hex_sign(skip))
 
+		dsr_prefix = 0
 		if '#P' in ins_str:
 			used_dsr_prefix = bool(self.last_dsr_prefix)
 			if used_dsr_prefix:
 				ins_len += 2
 				ins_str = ins_str.replace('#P', self.last_dsr_prefix)
+
+				try: dsr_prefix = int(self.last_dsr_prefix[:-1], 16)
+				except ValueError: pass
+				
 				self.last_dsr_prefix = ''
 				self.last_dsr_prefix_str = ''
 			else: ins_str = ins_str.replace('#P', '')
 		else: used_dsr_prefix = False
+
+		if dadr is not None:
+			addr = (dsr_prefix << 16) + dadr
+			sys.stdout.write('\r')
+			if addr in self.data_labels: ins_str = ins_str.replace(f'{format(addr >> 16, "02X") + ":" if used_dsr_prefix else ""}{addr & 0xffff:04X}H', self.data_labels[addr])
 
 		ins_str = ins_str.replace('#0', str(word[1]))
 		ins_str = ins_str.replace('#1', str(word[2]))
@@ -541,7 +551,7 @@ if __name__ == '__main__':
 	parser.add_argument('-a', '--hide-addresses', dest = 'addresses', action = 'store_false', help = 'hide addresses and operands in disassembly')
 	parser.add_argument('-u', '--no-unused', dest = 'unused_funcs', action = 'store_false', help = 'don\'t add the _UNUSED suffix for unused functions')
 	parser.add_argument('-t', '--no-auto-labels', dest = 'auto_labels', action = 'store_false', help = 'don\'t generate local label names')
-	parser.add_argument('-l', '--labels', metavar = 'labels', type = open, help = 'path to a labels file')
+	parser.add_argument('-l', '--labels', metavar = 'labels', nargs = '*', type = open, help = 'path to label files')
 	parser.add_argument('-s', '--start', metavar = 'start', default = '0', help = 'start address (must be even and hexadecimal)')
 	parser.add_argument('-n', '--no-vct', dest = 'vector', action = 'store_false', help = 'disable the vector table')
 	parser.add_argument('-o', '--output', metavar = 'output', default = 'disas.asm', help = 'name of output file (default = \'disas.asm\')')
@@ -554,16 +564,21 @@ if __name__ == '__main__':
 	disasm.input_file = open(args.input, 'rb').read()
 	disasm.output_file = open(args.output, 'w')
 
+	if len(disasm.input_file) % 2 != 0: parser.error('binary file must be of even length')
+
 	try: disasm.start = int(args.start, 16)
 	except ValueError: parser.error('invalid start address')
 	if int(args.start) % 2 != 0: parser.error('invalid start address')
 
-	if args.labels is not None:
-		logging.info('Adding label names from provided labels file')
-		labels = args.labels.readlines()
-		args.labels.close()
-		label_data = [re.split(r'\s+', label.strip().split('#')[0].strip()) for label in labels]
-		label_data = list(filter((['']).__ne__, label_data))
+	if len(args.labels) > 0:
+		logging.info(f'Adding label names from provided label file{"s" if len(args.labels) > 1 else ""}')
+		
+		label_data = []
+		for file in args.labels:
+			labels = file.readlines()
+			file.close()
+			labeldata = [re.split(r'\s+', label.strip().split('#')[0].strip()) for label in labels]
+			label_data.extend(list(filter((['']).__ne__, labeldata)))
 
 		curr_func = None
 		for data in label_data:
@@ -571,18 +586,26 @@ if __name__ == '__main__':
 				try:
 					if data[0].startswith('f_'):
 						addr = int(data[0][2:], 16)
-						disasm.labels[addr] = [data[1], True]
-						curr_func = addr
+						if addr in disasm.labels: logging.warning(f'Duplicate function label {addr:05X}, skipping')
+						else:
+							disasm.labels[addr] = [data[1], True]
+							curr_func = addr
 					elif data[0].startswith('.l_'):
 						addr = curr_func + int(data[0][3:], 16)
-						disasm.labels[addr] = [data[1], False, 0, []]
+						if addr in disasm.labels: logging.warning(f'Duplicate local label {curr_func:05X}+{int(data[0][3:], 16):03X}, skipping')
+						else: disasm.labels[addr] = [data[1], False, 0, []]
+					elif data[0].startswith('d_'):
+						addr = int(data[0][2:], 16)
+						if addr in disasm.data_labels: logging.warning(f'Duplicate data label {addr:05X}, skipping')
+						else: disasm.data_labels[addr] = data[1]
 					else:
 						addr = int(data[0], 16)
-						disasm.labels[addr] = [data[1], True]
-						curr_func = addr
+						if addr in disasm.labels: logging.warning(f'Duplicate function label {addr:05X}, skipping')
+						else:
+							disasm.labels[addr] = [data[1], True]
+							curr_func = addr
 				except Exception: pass
 
-	if len(disasm.input_file) % 2 != 0: parser.error('binary file must be of even length')
 	try: disasm.disassemble(args)
 	except Exception:
 		sys.stdout.write('\r')
