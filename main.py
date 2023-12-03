@@ -367,7 +367,7 @@ class Disasm:
 			if radr > 5 and self.start <= radr < self.start + len(self.input_file):
 				radr_ = radr - self.start
 				skip = False
-				if radr in self.labels:
+				if radr_ in self.labels:
 					label_name = self.labels[radr_][0]
 					skip = True
 				if not skip:
@@ -422,7 +422,7 @@ class Disasm:
 		tab = '\t'
 		if args.addresses: format_ins = lambda addr, ins_op, ins_len, ins_str: f'{self.fmt_addr(self.start + addr)}\t{format(ins_op, "0"+str(ins_len*2)+"X")}\t{tab if ins_len < 3 else ""}{tab if ins_len < 5 else ""}{ins_str}'
 		else: format_ins = lambda addr = None, ins_op = None, ins_len = None, ins_str = '': f'\t{ins_str}'
-		self.get_op = lambda addr, length = 2: int.from_bytes(self.conv_little(self.input_file[addr-self.start:addr-self.start+length]), 'big')
+		self.get_op = lambda addr, length = 2: int.from_bytes(self.conv_little(self.input_file[addr:addr+length]), 'big')
 
 		logging.info('Disassembling')
 		print_progress_disas = lambda: print(f'\rAddress: {self.fmt_addr(self.start + self.addr)}  Progress: {format(round(self.addr / len(self.input_file) * 100), "3")}%', end = '')
@@ -568,7 +568,7 @@ if __name__ == '__main__':
 
 	try: disasm.start = int(args.start, 16)
 	except ValueError: parser.error('invalid start address')
-	if int(args.start) % 2 != 0: parser.error('invalid start address')
+	if disasm.start % 2 != 0: parser.error('invalid start address')
 
 	if args.labels is not None:
 		logging.info(f'Adding label names from provided label file{"s" if len(args.labels) > 1 else ""}')
@@ -585,26 +585,26 @@ if __name__ == '__main__':
 			if len(data) > 1:
 				try:
 					if data[0].startswith('f_'):
-						addr = int(data[0][2:], 16)
+						addr = int(data[0][2:], 16) - disasm.start
 						if addr in disasm.labels: logging.warning(f'Duplicate function label {addr:05X}, skipping')
 						else:
 							disasm.labels[addr] = [data[1], True]
 							curr_func = addr
 					elif data[0].startswith('.l_'):
-						addr = curr_func + int(data[0][3:], 16)
+						addr = curr_func + int(data[0][3:], 16) - disasm.start
 						if addr in disasm.labels: logging.warning(f'Duplicate local label {curr_func:05X}+{int(data[0][3:], 16):03X}, skipping')
 						else: disasm.labels[addr] = [data[1], False, 0, []]
 					elif data[0].startswith('d_'):
-						addr = int(data[0][2:], 16)
+						addr = int(data[0][2:], 16) - disasm.start
 						if addr in disasm.data_labels: logging.warning(f'Duplicate data label {addr:05X}, skipping')
 						else: disasm.data_labels[addr] = data[1]
 					else:
-						addr = int(data[0], 16)
+						addr = int(data[0], 16) - disasm.start
 						if addr in disasm.labels: logging.warning(f'Duplicate function label {addr:05X}, skipping')
 						else:
 							disasm.labels[addr] = [data[1], True]
 							curr_func = addr
-				except Exception: pass
+				except Exception: logging.error(f'Exception occured.\n{traceback.format_exc()}')
 
 	try: disasm.disassemble(args)
 	except Exception:
