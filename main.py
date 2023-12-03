@@ -400,7 +400,7 @@ class Disasm:
 		ins_str = ins_str.replace('#0', str(word[1]))
 		ins_str = ins_str.replace('#1', str(word[2]))
 		ins_str = ins_str.replace('#bit_offset', str(word[2] & 7))
-		if 'ADD' in ins_str: ins_str = ins_str.replace('#imm8', f'#{self.format_hex(ctypes.c_byte(self.comb_nibbs(word[2:])).value)}')
+		if 'ADD ' in ins_str: ins_str = ins_str.replace('#imm8', f'#{self.format_hex(ctypes.c_byte(self.comb_nibbs(word[2:])).value)}')
 		else: ins_str = ins_str.replace('#imm8', f'#{self.format_hex(self.comb_nibbs(word[2:]))}')
 		ins_str = ins_str.replace('#unsigned8', f'#{self.format_hex(self.comb_nibbs(word[2:]))}')
 		ins_str = ins_str.replace('#signed8', self.format_hex_sign(ctypes.c_byte(self.comb_nibbs(word[2:])).value, 2))
@@ -570,7 +570,7 @@ if __name__ == '__main__':
 	except ValueError: parser.error('invalid start address')
 	if int(args.start) % 2 != 0: parser.error('invalid start address')
 
-	if len(args.labels) > 0:
+	if args.labels is not None:
 		logging.info(f'Adding label names from provided label file{"s" if len(args.labels) > 1 else ""}')
 		
 		label_data = []
