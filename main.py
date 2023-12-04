@@ -415,6 +415,7 @@ class Disasm:
 
 	def read_ins(self) -> tuple:
 		byte = self.input_file[self.addr:self.addr+2][::-1]
+		if byte == b'': byte = b'\xff\xff'
 		return self.conv_nibbs(byte), byte
 
 	def disassemble(self, args):
