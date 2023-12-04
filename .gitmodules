@@ -1,0 +1,3 @@
+[submodule "labeltool"]
+	path = labeltool
+	url = https://github.com/gamingwithevets/labeltool.git

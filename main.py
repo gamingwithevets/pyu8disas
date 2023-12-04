@@ -6,6 +6,7 @@ import logging
 import argparse
 import traceback
 from functools import cache
+from labeltool import labeltool
 
 if sys.version_info < (3, 6, 0, 'alpha', 4):
 	print('This program requires at least Python 3.6.0a4. (You are running Python ', platform.python_version(), ')', sep = '')
@@ -33,6 +34,7 @@ class Disasm:
 		self.start = 0
 		self.labels = {}
 		self.data_labels = {}
+		self.data_bit_labels = {}
 		self.last_dsr_prefix = ''
 		self.last_dsr_prefix_str = ''
 		
@@ -552,7 +554,7 @@ if __name__ == '__main__':
 	parser.add_argument('-u', '--no-unused', dest = 'unused_funcs', action = 'store_false', help = 'don\'t add the _UNUSED suffix for unused functions')
 	parser.add_argument('-t', '--no-auto-labels', dest = 'auto_labels', action = 'store_false', help = 'don\'t generate local label names')
 	parser.add_argument('-l', '--labels', metavar = 'labels', nargs = '*', type = open, help = 'path to label files')
-	parser.add_argument('-s', '--start', metavar = 'start', default = '0', help = 'start address (must be even and hexadecimal)')
+	parser.add_argument('-s', '--start', metavar = 'start', default = 0, type = lambda x: int(x, 0), help = 'start address (must be even)')
 	parser.add_argument('-n', '--no-vct', dest = 'vector', action = 'store_false', help = 'disable the vector table')
 	parser.add_argument('-o', '--output', metavar = 'output', default = 'disas.asm', help = 'name of output file (default = \'disas.asm\')')
 	parser.add_argument('-d', '--debug', action = 'store_true', help = 'enable debug logs')
@@ -560,51 +562,23 @@ if __name__ == '__main__':
 
 	logging.basicConfig(datefmt = '%d/%m/%Y %H:%M:%S', format = '[%(asctime)s] %(levelname)s: %(message)s', level = logging.DEBUG if args.debug else logging.INFO)
 
+	if args.start % 2 != 0: parser.error('invalid start address')
+
 	disasm = Disasm()
 	disasm.input_file = open(args.input, 'rb').read()
 	disasm.output_file = open(args.output, 'w')
+	disasm.start = args.start
 
 	if len(disasm.input_file) % 2 != 0: parser.error('binary file must be of even length')
-
-	try: disasm.start = int(args.start, 16)
-	except ValueError: parser.error('invalid start address')
-	if disasm.start % 2 != 0: parser.error('invalid start address')
 
 	if args.labels is not None:
 		logging.info(f'Adding label names from provided label file{"s" if len(args.labels) > 1 else ""}')
 		
-		label_data = []
 		for file in args.labels:
-			labels = file.readlines()
-			file.close()
-			labeldata = [re.split(r'\s+', label.strip().split('#')[0].strip()) for label in labels]
-			label_data.extend(list(filter((['']).__ne__, labeldata)))
-
-		curr_func = None
-		for data in label_data:
-			if len(data) > 1:
-				try:
-					if data[0].startswith('f_'):
-						addr = int(data[0][2:], 16) - disasm.start
-						if addr in disasm.labels: logging.warning(f'Duplicate function label {addr:05X}, skipping')
-						else:
-							disasm.labels[addr] = [data[1], True]
-							curr_func = addr
-					elif data[0].startswith('.l_'):
-						addr = curr_func + int(data[0][3:], 16) - disasm.start
-						if addr in disasm.labels: logging.warning(f'Duplicate local label {curr_func:05X}+{int(data[0][3:], 16):03X}, skipping')
-						else: disasm.labels[addr] = [data[1], False, 0, []]
-					elif data[0].startswith('d_'):
-						addr = int(data[0][2:], 16) - disasm.start
-						if addr in disasm.data_labels: logging.warning(f'Duplicate data label {addr:05X}, skipping')
-						else: disasm.data_labels[addr] = data[1]
-					else:
-						addr = int(data[0], 16) - disasm.start
-						if addr in disasm.labels: logging.warning(f'Duplicate function label {addr:05X}, skipping')
-						else:
-							disasm.labels[addr] = [data[1], True]
-							curr_func = addr
-				except Exception: logging.error(f'Exception occured.\n{traceback.format_exc()}')
+			labels, data_labels, data_bit_labels = labeltool.load_labels(file, args.start)
+			for key in labels.keys(): disasm.labels[key] = labels[key]
+			for key in data_labels.keys(): disasm.data_labels[key] = data_labels[key]
+			for key in data_bit_labels.keys(): disasm.data_bit_labels[key] = data_bit_labels[key]
 
 	try: disasm.disassemble(args)
 	except Exception:
