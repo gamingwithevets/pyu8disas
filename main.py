@@ -410,6 +410,7 @@ class Disasm:
 		ins_str = ins_str.replace('#width', str(word[2] & 7))
 		ins_str = ins_str.replace('#Disp6', self.format_hex_sign(signed6(self.comb_nibbs((word[2] & 3, word[3]))).value))
 		ins_str = ins_str.replace('#snum', str(self.comb_nibbs((word[2] & 3, word[3]))))
+		for key in self.data_bit_labels: ins_str = ins_str.replace(key, self.data_bit_labels[key])
 
 		return ins_str, ins_len, False, used_dsr_prefix
 
