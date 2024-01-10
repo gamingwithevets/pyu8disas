@@ -5,7 +5,7 @@ import ctypes
 import logging
 import argparse
 import traceback
-from functools import cache
+from functools import lru_cache
 from labeltool import labeltool
 
 if sys.version_info < (3, 6, 0, 'alpha', 4):
@@ -217,7 +217,7 @@ class Disasm:
 			((9, '#0', 5, 5), 'ST', 'XR#0', '#P[EA+]'),
 			((8, '#0', '#1', 8), 'SUB', 'R#0', 'R#1'),
 			((8, '#0', '#1', 9), 'SUBC', 'R#0', 'R#1'),
-			((8, '5', 0, '#snum'), 'SWI', '#snum'),
+			((0xe, '5', 0, '#snum'), 'SWI', '#snum'),
 			((0xa, 0, 1, 1), 'TB', '#P#Dadr.#bit_offset'),
 			((0xa, '#0', 0, 1), 'TB', 'R#0.#bit_offset'),
 			((8, '#0', '#1', 4), 'XOR', 'R#0', 'R#1'),
@@ -233,36 +233,36 @@ class Disasm:
 		self.rst_vct_names = {0: 'spinit', 2: 'start', 4: 'brk'}
 
 	@staticmethod
-	@cache
+	@lru_cache
 	def conv_nibbs(data: bytes) -> tuple: return (data[0] >> 4) & 0xf, data[0] & 0xf, (data[1] >> 4) & 0xf, data[1] & 0xf
 
 	@staticmethod
-	@cache
+	@lru_cache
 	def comb_nibbs(data: tuple) -> int: return int(hex(data[0]) + hex(data[1])[2:], 16)
 
 	@staticmethod
-	@cache
+	@lru_cache
 	def format_hex(data: int) -> str: return format(data, '02X') + 'H'
 	@staticmethod
-	@cache
+	@lru_cache
 	def format_hex_sign(data: int, digits = 1) -> str: return format(data, f'+0{digits+1}X') + 'H'
 	@staticmethod
-	@cache
+	@lru_cache
 	def format_hex_w(data: int) -> str: return format(data, '04X') + 'H'
 	@staticmethod
-	@cache
+	@lru_cache
 	def format_hex_dd(data: int) -> str: return format(data, '08X') + 'H'
 	@staticmethod
-	@cache
+	@lru_cache
 
 	@staticmethod
-	@cache
+	@lru_cache
 	def conv_little(data: bytes) -> bytes: return bytes([c for t in zip(data[1::2], data[::2]) for c in t])
 
 	def printf(self, *args): print(*args, file = self.output_file)
 
 	@staticmethod
-	@cache
+	@lru_cache
 	def fmt_addr(addr: int) -> str:
 		return f'{addr >> 16:X}:{addr & 0xffff:04X}H'
 
@@ -440,7 +440,7 @@ class Disasm:
 				self.addr += 2
 
 			for k, v in self.rst_vct_names.items():
-				if k > 0: self.labels[int.from_bytes(self.conv_little(self.input_file[k:k+2]), 'big')] = [v, True]
+				if k > 0 and k >= args.start: self.labels[int.from_bytes(self.conv_little(self.input_file[k:k+2]), 'big')] = [v, True]
 
 		addr_prev = None
 		while self.addr < len(self.input_file):
@@ -468,7 +468,7 @@ class Disasm:
 		logging.info('Searching for unused functions')
 		count = 0
 		for k, v in lines.items():
-			if any(f'\t{j}' in v for j in ('POP PC', 'RT', 'RTI', 'BAL', 'B ER')):
+			if any(f'\t{j}' in v for j in ('RT', 'RTI', 'BAL', 'B ER')) or ('\tPOP' in v and 'PC' in v):
 				if k+2 in self.labels:
 					if self.labels[k+2][1]: lines[k] += '\n'
 				else:
