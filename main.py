@@ -266,7 +266,7 @@ class Disasm:
 	def fmt_addr(addr: int) -> str:
 		return f'{addr >> 16:X}:{addr & 0xffff:04X}H'
 
-	def decode_ins(self):
+	def decode_ins(self, only_labels = False):
 		prefix_word, _ = self.read_ins()
 		prefix_str = ''
 		for prefix in self.dsr_prefixes:
@@ -351,33 +351,41 @@ class Disasm:
 			ins_len += 2
 			cadr = word[1] * 0x10000 + int.from_bytes(raw_bytes2, 'big')
 			if cadr % 2 != 0: cadr -= 1
-			if cadr > 5 and self.start <= cadr < self.start + len(self.input_file):
-				cadr_ = cadr - self.start
-				skip = False
-				if cadr_ in self.labels:
-					label_name = self.labels[cadr_][0]
-					skip = True
-				if not skip:
-					label_name = f'f_{format(cadr, "05X")}'
-					self.labels[cadr_] = [label_name, True]
-				ins_str = ins_str.replace('#Cadr', label_name)
-			else: ins_str = ins_str.replace('#Cadr', self.fmt_addr(cadr))
+			cadr_ = cadr - self.start
+			if only_labels:
+				if cadr_ in self.labels: ins_str = ins_str.replace('#Cadr', self.labels[cadr_][0])
+				else: ins_str = ins_str.replace('#Cadr', self.fmt_addr(cadr))
+			else:
+				if cadr > 5 and self.start <= cadr < self.start + len(self.input_file):
+					skip = False
+					if cadr_ in self.labels:
+						label_name = self.labels[cadr_][0]
+						skip = True
+					if not skip:
+						label_name = f'f_{format(cadr, "05X")}'
+						self.labels[cadr_] = [label_name, True]
+					ins_str = ins_str.replace('#Cadr', label_name)
+				else: ins_str = ins_str.replace('#Cadr', self.fmt_addr(cadr))
 
 		if '#Radr' in ins_str:
 			skip = ctypes.c_byte(self.comb_nibbs(word[2:])).value * 2
 			radr = self.start + self.addr + 2 + skip
-			if radr > 5 and self.start <= radr < self.start + len(self.input_file):
-				radr_ = radr - self.start
-				skip = False
-				if radr_ in self.labels:
-					label_name = self.labels[radr_][0]
-					skip = True
-				if not skip:
-					label_name = f'.j_{radr:05X}'
-					if radr in self.labels: self.labels[radr_][3].add(self.start + self.addr)
-					else: self.labels[radr_] = [label_name, False, 0, {self.start + self.addr}]
-				ins_str = ins_str.replace('#Radr', label_name)
-			else: ins_str = ins_str.replace('#Radr', self.format_hex_sign(skip))
+			radr_ = radr - self.start
+			if only_labels:
+				if radr_ in self.labels: ins_str = ins_str.replace('#Radr', self.labels[radr_][0])
+				else: ins_str = ins_str.replace('#Radr', self.fmt_addr(radr))
+			else:
+				if radr > 5 and self.start <= radr < self.start + len(self.input_file):
+					skip = False
+					if radr_ in self.labels:
+						label_name = self.labels[radr_][0]
+						skip = True
+					if not skip:
+						label_name = f'.j_{radr:05X}'
+						if radr in self.labels: self.labels[radr_][3].add(self.start + self.addr)
+						else: self.labels[radr_] = [label_name, False, 0, {self.start + self.addr}]
+					ins_str = ins_str.replace('#Radr', label_name)
+				else: ins_str = ins_str.replace('#Radr', self.format_hex_sign(skip))
 
 		dsr_prefix = 0
 		if '#P' in ins_str:
