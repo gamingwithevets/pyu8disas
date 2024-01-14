@@ -375,7 +375,7 @@ class Disasm:
 				if radr_ in self.labels:
 					label = self.labels[radr_]
 					ins_str = ins_str.replace('#Radr', self.labels[label[2]][0] + label[0])
-				else: ins_str = ins_str.replace('#Radr', self.fmt_addr(radr))
+				else: ins_str = ins_str.replace('#Radr', self.format_hex_sign(skip))
 			else:
 				if radr > 5 and self.start <= radr < self.start + len(self.input_file):
 					skip = False
