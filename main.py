@@ -578,7 +578,6 @@ if __name__ == '__main__':
 	parser.add_argument('-o', '--output', metavar = 'output', default = 'disas.asm', help = 'name of output file (default = \'disas.asm\')')
 	parser.add_argument('-d', '--debug', action = 'store_true', help = 'enable debug logs')
 	args = parser.parse_args()
-	print(args)
 
 	logging.basicConfig(datefmt = '%d/%m/%Y %H:%M:%S', format = '[%(asctime)s] %(levelname)s: %(message)s', level = logging.DEBUG if args.debug else logging.INFO)
 
