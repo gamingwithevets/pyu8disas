@@ -10,7 +10,7 @@
 
 # Usage
 ```
-usage: main.py [-h] [-a] [-u] [-t] [-l LABELS] [-o output] [-d] input
+usage: main.py [-h] [-a] [-u] [-t] [-l [labels ...]] [-e [labels ...]] [-s start] [-n] [-o output] [-d] input
 
 positional arguments:
   input                 name of binary file (must have even length)
@@ -22,8 +22,10 @@ options:
   -t, --no-auto-labels  don't generate local label names
   -l [labels ...], --labels [labels ...]
                         path to label files
+  -e [labels ...], --export-labels [labels ...]
+                        export labels to given label filename
   -s start, --start start
-                        start address (must be even and hexadecimal)
+                        start address (must be even)
   -n, --no-vct          disable the vector table
   -o output, --output output
                         name of output file (default = 'disas.asm')
