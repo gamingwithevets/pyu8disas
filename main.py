@@ -572,11 +572,7 @@ if __name__ == '__main__':
 	parser.add_argument('-u', '--no-unused', dest = 'unused_funcs', action = 'store_false', help = 'don\'t add the _UNUSED suffix for unused functions')
 	parser.add_argument('-t', '--no-auto-labels', dest = 'auto_labels', action = 'store_false', help = 'don\'t generate local label names')
 	parser.add_argument('-l', '--labels', metavar = 'labels', nargs = '*', type = open, help = 'path to label files')
-<<<<<<< HEAD
-	parser.add_argument('-e', '--export-labels', metavar = 'labels', nargs = '*', type = lambda x: open(x, 'w'), help = 'export labels to given label filename')
-=======
 	parser.add_argument('-e', '--export-labels', metavar = 'labelfile', type = lambda x: open(x, 'w'), help = 'export labels to given label filename')
->>>>>>> d9fc3c797a7fff38fab63d2864621bb57a83f3df
 	parser.add_argument('-s', '--start', metavar = 'start', default = 0, type = lambda x: int(x, 0), help = 'start address (must be even)')
 	parser.add_argument('-n', '--no-vct', dest = 'vector', action = 'store_false', help = 'disable the vector table')
 	parser.add_argument('-o', '--output', metavar = 'output', default = 'disas.asm', help = 'name of output file (default = \'disas.asm\')')
