@@ -5,7 +5,7 @@ import ctypes
 import logging
 import argparse
 import traceback
-from functools import lru_cache
+from functools import cache
 from labeltool import labeltool
 
 if sys.version_info < (3, 6, 0, 'alpha', 4):
@@ -238,36 +238,36 @@ class Disasm:
 		self.rst_vct_names = {0: 'spinit', 2: 'start', 4: 'brk'}
 
 	@staticmethod
-	@lru_cache
+	@cache
 	def conv_nibbs(data: bytes) -> tuple: return (data[0] >> 4) & 0xf, data[0] & 0xf, (data[1] >> 4) & 0xf, data[1] & 0xf
 
 	@staticmethod
-	@lru_cache
+	@cache
 	def comb_nibbs(data: tuple) -> int: return int(hex(data[0]) + hex(data[1])[2:], 16)
 
 	@staticmethod
-	@lru_cache
+	@cache
 	def format_hex(data: int) -> str: return format(data, '02X') + 'H'
 	@staticmethod
-	@lru_cache
+	@cache
 	def format_hex_sign(data: int, digits = 1) -> str: return format(data, f'+0{digits+1}X') + 'H'
 	@staticmethod
-	@lru_cache
+	@cache
 	def format_hex_w(data: int) -> str: return format(data, '04X') + 'H'
 	@staticmethod
-	@lru_cache
+	@cache
 	def format_hex_dd(data: int) -> str: return format(data, '08X') + 'H'
 	@staticmethod
-	@lru_cache
+	@cache
 
 	@staticmethod
-	@lru_cache
+	@cache
 	def conv_little(data: bytes) -> bytes: return bytes([c for t in zip(data[1::2], data[::2]) for c in t])
 
 	def printf(self, *args): print(*args, file = self.output_file)
 
 	@staticmethod
-	@lru_cache
+	@cache
 	def fmt_addr(addr: int) -> str:
 		return f'{addr >> 16:X}:{addr & 0xffff:04X}H'
 
