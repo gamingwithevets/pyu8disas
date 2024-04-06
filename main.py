@@ -369,7 +369,7 @@ class Disasm:
 					if not skip:
 						label_name = f'f_{format(cadr, "05X")}'
 						self.labels[cadr_] = [label_name, True]
-					ins_str = ins_str.replace('#Cadr', label_name)
+					ins_str = ins_str.replace('#Cadr', f'{"" if self.labels[cadr_][1] or self.labels[cadr_][2] not in self.labels else self.labels[self.labels[cadr_][2]][0]}{label_name}')
 				else: ins_str = ins_str.replace('#Cadr', self.fmt_addr(cadr))
 
 		if '#Radr' in ins_str:
@@ -391,7 +391,7 @@ class Disasm:
 						label_name = f'.j_{radr:05X}'
 						if radr in self.labels: self.labels[radr_][3].add(self.start + self.addr)
 						else: self.labels[radr_] = [label_name, False, 0, {self.start + self.addr}]
-					ins_str = ins_str.replace('#Radr', label_name)
+					ins_str = ins_str.replace('#Radr', f'{"" if self.labels[radr_][1] or self.labels[radr_][2] not in self.labels else self.labels[self.labels[radr_][2]][0]}{label_name}')
 				else: ins_str = ins_str.replace('#Radr', self.format_hex_sign(skip))
 
 		dsr_prefix = 0
