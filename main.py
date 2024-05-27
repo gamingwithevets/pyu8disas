@@ -190,7 +190,7 @@ class Disasm:
 			((0xf, 0xe, 1, 0xf), 'RT'),
 			((0xf, 0xe, 0, 0xf), 'RTI'),
 			((0xa, 0, 1, 0), 'SB', '#P#Dadr.#bit_offset'),
-			((0xa, '#0', 1, 0), 'SB', 'R#0.#bit_offset'),
+			((0xa, '#0', 0, 0), 'SB', 'R#0.#bit_offset'),
 			((0xe, 0xd, 8, 0), 'SC'),
 			((8, '#0', '#1', 0xa), 'SLL', 'R#0', 'R#1'),
 			((9, '#0', 0, 0xa), 'SLL', 'R#0', '#width'),
