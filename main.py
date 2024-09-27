@@ -8,8 +8,8 @@ import traceback
 from functools import cache
 from labeltool import labeltool
 
-if sys.version_info < (3, 6, 0, 'alpha', 4):
-	print('This program requires at least Python 3.6.0a4. (You are running Python ', platform.python_version(), ')', sep = '')
+if sys.version_info < (3, 8, 0):
+	print('This program requires at least Python 3.8.0. (You are running Python ', platform.python_version(), ')', sep = '')
 	sys.exit()
 
 header = '''\
