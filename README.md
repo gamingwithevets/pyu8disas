@@ -1,6 +1,11 @@
+# Deprecation notice
+PyU8disas has been deprecated in favor of the upgraded version, [PyU8disasX](https://github.com/gamingwithevets/pyu8disasx). Please use the newer version instead.
+
+# PyU8disas
+
 **PyU8disas** is an nX-U8/100 core disassembler written in Python. It tries to mimic the original, intended assembly syntax of the U8 architecture.
 
-# Features
+## Features
 - **Automatic labels**
   - PyU8disas can detect function calls and jump instructions, and label functions and jump addresses accordingly.
 - **Unused function detection**
@@ -8,7 +13,7 @@
 - **Labels file loading**
   - PyU8disas can load a provided labels file and insert the labels into the disassembly. See user202729's labels files as a reference to create your own labels files.
 
-# Usage
+## Usage
 ```
 usage: main.py [-h] [-a] [-u] [-t] [-l [labels ...]] [-e [labels ...]] [-s start] [-n] [-o output] [-d] input
 
@@ -32,7 +37,7 @@ options:
   -d, --debug           enable debug logs
 ```
 
-# Other U8 disassemblers
+## Other U8 disassemblers
 Here are some other nX-U8/100 disassemblers you should check out.
 
 - [nxu8_disas](https://github.com/Fraserbc/nxu8_disas) by Fraser Price / Fraserbc / Delta / frsr
